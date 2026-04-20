@@ -1,7 +1,6 @@
 <?php
 // ============================================================
 //  db.php  —  Single source of truth for DB connection
-//  Used by every API file via:  require_once '../db.php';
 // ============================================================
 
 define('DB_HOST',    'sql12.freesqldatabase.com');
@@ -17,13 +16,19 @@ $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
+    PDO::ATTR_TIMEOUT            => 8,   // ← fail fast after 8 seconds
 ];
 
 try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
 } catch (PDOException $e) {
     http_response_code(500);
-    echo json_encode(['success' => false, 'error' => 'Database connection failed: ' . $e->getMessage()]);
+    header('Content-Type: application/json');
+    // User-friendly message instead of raw PDO error
+    echo json_encode([
+        'success' => false,
+        'error'   => 'Cannot reach the database right now. Please try again in a moment.'
+    ]);
     exit;
 }
 
