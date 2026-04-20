@@ -1,7 +1,14 @@
-# Override Hack misdetection
-htaccess linguist-language=ApacheConf
+# ── Force all PHP to be detected as PHP, never Hack ──────────
+*.php linguist-language=PHP
+*.php linguist-detectable=true
+
+# ── Exclude non-source files from language stats ─────────────
 .htaccess linguist-language=ApacheConf
+apache.conf linguist-language=ApacheConf
 Dockerfile linguist-detectable=false
 start.sh linguist-detectable=false
-apache.conf linguist-detectable=false
 schema.sql linguist-detectable=false
+manifest.json linguist-detectable=false
+sw.js linguist-detectable=false
+pwa.js linguist-detectable=false
+api.js linguist-detectable=false
