@@ -1,9 +1,25 @@
 // ============================================================
 //  js/api.js  —  Shared API helper for all POS pages
-//  Include this on every page:  <script src="js/api.js"></script>
 // ============================================================
 
-const API_BASE = ''; // relative path — works on any server
+const API_BASE = '';
+
+// ── Fetch with timeout ────────────────────────────────────────
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, { ...opts, signal: controller.signal });
+        clearTimeout(timer);
+        return res;
+    } catch (err) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError') {
+            throw new Error('Request timed out. The server is taking too long to respond.');
+        }
+        throw err;
+    }
+}
 
 const api = {
     // Generic fetch wrapper
@@ -15,7 +31,7 @@ const api = {
             headers: { 'Content-Type': 'application/json' },
         };
         if (body) opts.body = JSON.stringify(body);
-        const res = await fetch(url, opts);
+        const res = await fetchWithTimeout(url, opts);
         const data = await res.json();
         return data;
     },
@@ -34,12 +50,11 @@ const api = {
     products: {
         list: (params = {}) => {
             const qs = new URLSearchParams({ action: 'list', ...params }).toString();
-            return fetch(`products.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
+            return fetchWithTimeout(`products.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
         },
         create: (formData) => {
-            // formData can be FormData (with image) or plain object
             if (formData instanceof FormData) {
-                return fetch(`products.php?action=create`, {
+                return fetchWithTimeout(`products.php?action=create`, {
                     method: 'POST',
                     credentials: 'same-origin',
                     body: formData,
@@ -48,15 +63,14 @@ const api = {
             return api.request('products', 'create', 'POST', formData);
         },
         update: (id, data) => {
-            // Accept FormData (with image) or plain object
             if (data instanceof FormData) {
-                return fetch(`products.php?action=update&id=${id}`, {
+                return fetchWithTimeout(`products.php?action=update&id=${id}`, {
                     method: 'POST',
                     credentials: 'same-origin',
-                    body: data, // browser sets multipart header automatically
+                    body: data,
                 }).then(r => r.json());
             }
-            return fetch(`products.php?action=update&id=${id}`, {
+            return fetchWithTimeout(`products.php?action=update&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
@@ -64,12 +78,12 @@ const api = {
             }).then(r => r.json());
         },
         delete: (id) =>
-            fetch(`products.php?action=delete&id=${id}`, {
+            fetchWithTimeout(`products.php?action=delete&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
             }).then(r => r.json()),
         adjustStock: (id, delta) =>
-            fetch(`products.php?action=adjust_stock&id=${id}`, {
+            fetchWithTimeout(`products.php?action=adjust_stock&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
@@ -82,12 +96,12 @@ const api = {
         place: (payload) => api.request('orders', 'place', 'POST', payload),
         list: (params = {}) => {
             const qs = new URLSearchParams({ action: 'list', ...params }).toString();
-            return fetch(`orders.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
+            return fetchWithTimeout(`orders.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
         },
         get: (id) =>
-            fetch(`orders.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
+            fetchWithTimeout(`orders.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
         void: (id) =>
-            fetch(`orders.php?action=void&id=${id}`, {
+            fetchWithTimeout(`orders.php?action=void&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
             }).then(r => r.json()),
@@ -96,39 +110,39 @@ const api = {
     // ── DASHBOARD ─────────────────────────────────────────────
     dashboard: {
         kpis: (branchId = '') =>
-            fetch(`dashboard.php?action=kpis${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
+            fetchWithTimeout(`dashboard.php?action=kpis${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
         revenueTrend: (branchId = '') =>
-            fetch(`dashboard.php?action=revenue_trend${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
+            fetchWithTimeout(`dashboard.php?action=revenue_trend${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
         orderSources: (branchId = '') =>
-            fetch(`dashboard.php?action=order_sources${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
+            fetchWithTimeout(`dashboard.php?action=order_sources${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
         topProducts: (branchId = '') =>
-            fetch(`dashboard.php?action=top_products${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
+            fetchWithTimeout(`dashboard.php?action=top_products${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
     },
 
     // ── SALES REPORT ─────────────────────────────────────────
     salesReport: {
         get: (params = {}) => {
             const qs = new URLSearchParams(params).toString();
-            return fetch(`salesreport.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
+            return fetchWithTimeout(`salesreport.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
         },
     },
 
     // ── CUSTOMERS ────────────────────────────────────────────
     customers: {
         list: (search = '') =>
-            fetch(`customers.php?action=list${search ? '&search=' + encodeURIComponent(search) : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
+            fetchWithTimeout(`customers.php?action=list${search ? '&search=' + encodeURIComponent(search) : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
         get: (id) =>
-            fetch(`customers.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
+            fetchWithTimeout(`customers.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
         create: (data) => api.request('customers', 'create', 'POST', data),
         update: (id, data) =>
-            fetch(`customers.php?action=update&id=${id}`, {
+            fetchWithTimeout(`customers.php?action=update&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(data),
             }).then(r => r.json()),
         delete: (id) =>
-            fetch(`customers.php?action=delete&id=${id}`, {
+            fetchWithTimeout(`customers.php?action=delete&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
             }).then(r => r.json()),
@@ -136,17 +150,21 @@ const api = {
 };
 
 // ── Auth Guard ────────────────────────────────────────────────
-// Call this at the top of any protected page
-async function requireLogin(redirectToAdmin = false) {
-    const res = await api.auth.me().catch(() => null);
-    if (!res || !res.success) {
+async function requireLogin() {
+    try {
+        const res = await api.auth.me();
+        if (!res || !res.success) {
+            window.location.href = 'login.php';
+            return null;
+        }
+        const el = document.getElementById('userGreeting');
+        if (el) el.textContent = res.user.name;
+        return res.user;
+    } catch (err) {
+        // Timeout or network error — still redirect to login
         window.location.href = 'login.php';
         return null;
     }
-    // Optionally update header greeting
-    const el = document.getElementById('userGreeting');
-    if (el) el.textContent = res.user.name;
-    return res.user;
 }
 
 // Convenience: format Philippine Peso
