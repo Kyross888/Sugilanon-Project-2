@@ -75,27 +75,19 @@
         }
         /* Brand/Logo Area */
         
-        .brand {
-            margin-bottom: 30px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
-        
-        .brand img {
-            width: 130px;
-            height: 65px;
-            object-fit: contain;
-            border-radius: 8px;
-            transition: 0.3s;
-        }
-        
-        .sidebar.collapsed .brand img {
-            width: 40px;
-            /* Shrinks logo when sidebar is collapsed */
-        }
+      .brand {
+    margin-bottom: 30px;
+    cursor: pointer;
+    text-align: center;
+}
+.brand img {
+    max-width: 100%;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+.sidebar.collapsed .brand img {
+    width: 40px;
+}
         /* Navigation Links */
         
         .nav-links {
