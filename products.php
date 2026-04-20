@@ -79,7 +79,7 @@ if ($action === 'create') {
         respond(['success' => false, 'error' => 'Name and a valid price are required.'], 400);
     }
 
-    // Handle optional image upload
+    // Handle optional image upload — store as base64 data URI (works on Railway)
     $image_path = null;
     if (!empty($_FILES['image']['tmp_name'])) {
         $ext     = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
@@ -87,11 +87,10 @@ if ($action === 'create') {
         if (!in_array($ext, $allowed)) {
             respond(['success' => false, 'error' => 'Invalid image type.'], 400);
         }
-        $uploadDir = dirname(__DIR__) . '/img/';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-        $filename   = uniqid('prod_', true) . '.' . $ext;
-        move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $filename);
-        $image_path = 'img/' . $filename;
+        $mimeMap  = ['jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','webp'=>'image/webp','gif'=>'image/gif'];
+        $mime     = $mimeMap[$ext] ?? 'image/jpeg';
+        $data     = file_get_contents($_FILES['image']['tmp_name']);
+        $image_path = 'data:' . $mime . ';base64,' . base64_encode($data);
     }
 
     $stmt = $pdo->prepare(
@@ -134,17 +133,16 @@ if ($action === 'update') {
         }
     }
 
-    // Handle image upload during update
+    // Handle image upload during update — store as base64 data URI (works on Railway)
     if (!empty($_FILES['image']['tmp_name'])) {
         $ext     = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
         $allowed = ['jpg','jpeg','png','webp','gif'];
         if (in_array($ext, $allowed)) {
-            $uploadDir = dirname(__DIR__) . '/img/';
-            if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-            $filename   = uniqid('prod_', true) . '.' . $ext;
-            move_uploaded_file($_FILES['image']['tmp_name'], $uploadDir . $filename);
+            $mimeMap  = ['jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png','webp'=>'image/webp','gif'=>'image/gif'];
+            $mime     = $mimeMap[$ext] ?? 'image/jpeg';
+            $data     = file_get_contents($_FILES['image']['tmp_name']);
             $sets[]   = "image_path = ?";
-            $params[] = 'img/' . $filename;
+            $params[] = 'data:' . $mime . ';base64,' . base64_encode($data);
         }
     }
 
