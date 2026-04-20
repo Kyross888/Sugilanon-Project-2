@@ -12,6 +12,12 @@ COPY . /var/www/html/
 # Copy Apache config
 COPY apache.conf /etc/apache2/sites-enabled/000-default.conf
 
+# Create js/ subfolder and move JS files into it
+# (pages reference js/api.js and js/pwa.js)
+RUN mkdir -p /var/www/html/js \
+    && mv /var/www/html/api.js /var/www/html/js/api.js \
+    && mv /var/www/html/pwa.js /var/www/html/js/pwa.js
+
 # Set permissions
 RUN chown -R www-data:www-data /var/www/html \
     && find /var/www/html -type f -exec chmod 644 {} \; \
