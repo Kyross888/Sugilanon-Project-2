@@ -587,7 +587,9 @@ if (!isset($_GET['action'])) {
     <script src="js/pwa.js"></script>
 </body>
 
-</html><?php } // end if no action
+</html><?php
+    exit; // Stop here for page requests — nothing below should run
+} // end if no action
 
 // ============================================================
 //  api/customers.php  —  CRUD for customer records
