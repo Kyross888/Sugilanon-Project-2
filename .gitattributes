@@ -1,0 +1,7 @@
+# Tell GitHub Linguist to ignore these files
+Dockerfile linguist-detectable=false
+htaccess linguist-detectable=false
+start.sh linguist-detectable=false
+apache.conf linguist-detectable=false
+schema.sql linguist-detectable=false
+*.json linguist-detectable=false
