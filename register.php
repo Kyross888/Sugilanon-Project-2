@@ -259,13 +259,19 @@
                 employee_id: this.employee_id.value,
             };
 
-            const res = await api.auth.register(payload);
+            try {
+                const res = await api.auth.register(payload);
 
-            if (res.success) {
-                alert('Account created successfully! Redirecting to login…');
-                window.location.href = 'login.php';
-            } else {
-                alert(res.error || 'Registration failed. Please try again.');
+                if (res.success) {
+                    alert('Account created successfully! Redirecting to login…');
+                    window.location.href = 'login.php';
+                } else {
+                    alert(res.error || 'Registration failed. Please try again.');
+                    btn.textContent = 'Create Account';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert('Connection error: ' + (err.message || 'Could not reach the server. Please try again.'));
                 btn.textContent = 'Create Account';
                 btn.disabled = false;
             }
