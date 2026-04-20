@@ -437,22 +437,28 @@
             const imgEl = document.getElementById('prodImage');
             if (imgEl && imgEl.files[0]) fd.append('image', imgEl.files[0]);
 
-            const res = editingId ?
-                await api.products.update(editingId, fd) :
-                await api.products.create(fd);
+            try {
+                const res = editingId ?
+                    await api.products.update(editingId, fd) :
+                    await api.products.create(fd);
 
-            btn.textContent = editingId ? 'Update Product' : 'Save Product';
-            btn.disabled = false;
+                btn.textContent = editingId ? 'Update Product' : 'Save Product';
+                btn.disabled = false;
 
-            if (res.success) {
-                closeModal();
-                this.reset();
-                editingId = null;
-                document.querySelector('.modal-content h3').textContent = 'Add New Product';
-                btn.textContent = 'Save Product';
-                await renderInventory();
-            } else {
-                alert(res.error || 'Failed to save product.');
+                if (res.success) {
+                    closeModal();
+                    this.reset();
+                    editingId = null;
+                    document.querySelector('.modal-content h3').textContent = 'Add New Product';
+                    btn.textContent = 'Save Product';
+                    await renderInventory();
+                } else {
+                    alert(res.error || 'Failed to save product.');
+                }
+            } catch (err) {
+                btn.textContent = editingId ? 'Update Product' : 'Save Product';
+                btn.disabled = false;
+                alert('Connection error: ' + (err.message || 'Could not reach the server.'));
             }
         };
 
