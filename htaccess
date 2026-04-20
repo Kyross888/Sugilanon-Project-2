@@ -1,0 +1,38 @@
+Options -Indexes
+
+# ── Redirect root to login page ─────────────────────────────
+DirectoryIndex login.php index.php
+
+# ── MIME types required for PWA ─────────────────────────────
+AddType application/manifest+json   .json
+AddType application/javascript      .js
+AddType image/png                   .png
+AddType image/webp                  .webp
+
+# Service Worker: must NOT be cached by browser
+<Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+    Header set Service-Worker-Allowed "/"
+</Files>
+
+# Manifest: short cache
+<Files "manifest.json">
+    Header set Cache-Control "max-age=0, must-revalidate"
+</Files>
+
+# Protect db.php from direct browser access
+<Files "db.php">
+    Require all denied
+</Files>
+
+# CORS headers for PWA
+<IfModule mod_headers.c>
+    Header always set Access-Control-Allow-Origin "*"
+</IfModule>
+
+RewriteEngine On
+
+# Redirect bare root to login
+RewriteRule ^$ /login.php [R=302,L]
