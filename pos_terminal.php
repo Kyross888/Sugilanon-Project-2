@@ -752,7 +752,7 @@
             <li><a href="inventory.php"><i class="fa-solid fa-box"></i> <span>Inventory</span></a></li>
             <li><a href="salesreport.php"><i class="fa-solid fa-chart-line"></i> <span>Sales Report</span></a></li>
             <li><a href="analytics.php"><i class="fa-solid fa-chart-pie"></i> <span>Analytics</span></a></li>
-            <li><a href="customer.php"><i class="fa-solid fa-users"></i> <span>Customers</span></a></li>
+            <li><a href="customers.php"><i class="fa-solid fa-users"></i> <span>Customers</span></a></li>
             <li><a href="settings.php"><i class="fa-solid fa-gear"></i> <span>Settings</span></a></li>
         </ul>
     </nav>
@@ -1262,7 +1262,8 @@
                 const outOfStock = usingDB && parseInt(p.stock) <= 0;
 
                 let visual;
-                if (p.image) visual = `<img src="${p.image}" alt="${p.name}">`;
+                const isValidImage = p.image && (p.image.startsWith('data:') || p.image.startsWith('http'));
+                if (isValidImage) visual = `<img src="${p.image}" alt="${p.name}">`;
                 else if (p.icon) visual = `<i class="fa-solid ${p.icon}"></i>`;
                 else visual = `<i class="fa-solid fa-utensils"></i>`;
 
