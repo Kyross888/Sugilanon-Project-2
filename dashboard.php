@@ -130,28 +130,19 @@ if (isset($_GET['action'])) {
             width: 80px;
         }
         
-        .brand {
-            margin-bottom: 30px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
-        
-        .brand img {
-            width: 130px;
-            height: 65px;
-            object-fit: contain;
-            border-radius: 8px;
-            transition: 0.3s;
-        }
-        /* Shrinks the logo when the sidebar is collapsed */
-        
-        .sidebar.collapsed .brand img {
-            width: 40px;
-        }
-        
+     .brand {
+    margin-bottom: 30px;
+    cursor: pointer;
+    text-align: center;
+}
+.brand img {
+    max-width: 100%;
+    border-radius: 8px;
+    transition: 0.3s;
+}
+.sidebar.collapsed .brand img {
+    width: 40px;
+}
         .nav-links {
             list-style: none;
         }
