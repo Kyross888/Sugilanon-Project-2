@@ -475,7 +475,7 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
             document.getElementById('kpi-revenue').textContent = fmt(summary.total_revenue);
             document.getElementById('kpi-orders').textContent = summary.total_orders;
             document.getElementById('kpi-discount').textContent = fmt(summary.total_discounts);
-            document.getElementById('best-dish').textContent = best_seller ? best_seller.name : 'N/A';
+            document.getElementById('best-dish').textContent = best_seller ? best_seller.product_name : 'N/A';
 
             // Table
             const tbody = document.getElementById('salesTableBody');
