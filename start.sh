@@ -7,11 +7,11 @@ echo "==> Starting Apache on port: $APACHE_PORT"
 # Rewrite ports.conf
 echo "Listen $APACHE_PORT" > /etc/apache2/ports.conf
 
-# Rewrite the vhost
+# Rewrite the vhost with the correct port substituted in
 cat > /etc/apache2/sites-enabled/000-default.conf << VHOST
 <VirtualHost *:${APACHE_PORT}>
     DocumentRoot /var/www/html
-    DirectoryIndex login.html index.html index.php
+    DirectoryIndex login.php index.php
     ErrorLog \${APACHE_LOG_DIR}/error.log
     CustomLog \${APACHE_LOG_DIR}/access.log combined
 
