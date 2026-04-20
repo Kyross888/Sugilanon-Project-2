@@ -235,17 +235,22 @@
             btn.textContent = 'Signing in…';
             btn.disabled = true;
 
-            const res = await api.auth.login(email, password, currentRole);
+            try {
+                const res = await api.auth.login(email, password, currentRole);
 
-            if (res.success) {
-                // Redirect based on actual role from DB (not just what was selected)
-                if (res.user.role === 'admin') {
-                    window.location.href = 'admin.php';
+                if (res.success) {
+                    if (res.user.role === 'admin') {
+                        window.location.href = 'admin.php';
+                    } else {
+                        window.location.href = 'dashboard.php';
+                    }
                 } else {
-                    window.location.href = 'dashboard.php';
+                    alert(res.error || 'Invalid credentials. Check your email, password, and selected role.');
+                    btn.textContent = 'Sign In';
+                    btn.disabled = false;
                 }
-            } else {
-                alert(res.error || 'Invalid credentials. Check your email, password, and selected role.');
+            } catch (err) {
+                alert('Connection error: ' + (err.message || 'Could not reach the server. Please try again.'));
                 btn.textContent = 'Sign In';
                 btn.disabled = false;
             }
