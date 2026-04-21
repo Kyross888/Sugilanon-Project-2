@@ -475,67 +475,145 @@
             display: none;
             position: fixed;
             inset: 0;
-            background: rgba(0, 0, 0, 0.6);
-            backdrop-filter: blur(4px);
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(6px);
             justify-content: center;
             align-items: center;
             z-index: 1000;
         }
-        
+
         .pay-modal {
-            background: white;
-            padding: 35px 30px;
-            border-radius: 20px;
+            background: #fff;
+            border-radius: 24px;
             text-align: center;
-            max-width: 380px;
-            width: 90%;
-            animation: modalPop 0.3s ease-out;
+            max-width: 400px;
+            width: 92%;
+            overflow: hidden;
+            box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+            animation: modalPop 0.25s ease-out;
         }
-        
+
+        .pay-modal-header {
+            padding: 28px 28px 20px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .pay-modal-header h2 {
+            font-size: 20px;
+            font-weight: 800;
+            color: #1a202c;
+            margin: 0 0 6px;
+            letter-spacing: -0.3px;
+        }
+
+        .pay-modal-header p {
+            font-size: 14px;
+            color: #718096;
+            margin: 0;
+        }
+
+        .pay-modal-header .pay-total-amount {
+            font-size: 28px;
+            font-weight: 800;
+            color: var(--primary);
+            letter-spacing: -0.5px;
+            margin-top: 4px;
+            display: block;
+        }
+
         .pay-method-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 12px;
-            margin: 22px 0 18px;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+            margin: 0;
         }
-        
+
         .pay-method-btn {
-            padding: 18px 8px;
-            border: 2px solid var(--border);
-            border-radius: 14px;
+            padding: 28px 16px;
+            border: none;
+            border-right: 1px solid #f0f0f0;
             cursor: pointer;
-            background: white;
-            transition: 0.2s;
+            background: #fff;
+            transition: background 0.18s, transform 0.15s;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 8px;
+            gap: 10px;
             font-weight: 700;
-            font-size: 13px;
-            color: var(--text-dark);
+            font-size: 15px;
+            color: #2d3748;
+            position: relative;
         }
-        
-        .pay-method-btn:hover {
-            border-color: var(--primary);
-            background: #f0f1fd;
-            transform: translateY(-2px);
+
+        .pay-method-btn:last-child {
+            border-right: none;
         }
-        
-        .pay-method-btn i {
-            font-size: 22px;
+
+        .pay-method-btn .pay-icon-wrap {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            transition: transform 0.15s;
         }
-        
+
+        .pay-method-btn.cash-btn .pay-icon-wrap {
+            background: linear-gradient(135deg, #c6f6d5, #9ae6b4);
+            color: #22543d;
+        }
+
+        .pay-method-btn.gcash-btn .pay-icon-wrap {
+            background: linear-gradient(135deg, #bee3f8, #90cdf4);
+            color: #1a365d;
+        }
+
         .pay-method-btn.cash-btn:hover {
-            border-color: #38a169;
             background: #f0fff4;
-            color: #276749;
         }
-        
+
         .pay-method-btn.gcash-btn:hover {
-            border-color: #0070e0;
-            background: #e8f4ff;
-            color: #0070e0;
+            background: #ebf8ff;
         }
+
+        .pay-method-btn:hover .pay-icon-wrap {
+            transform: scale(1.1);
+        }
+
+        .pay-method-btn .pay-label {
+            font-size: 14px;
+            font-weight: 700;
+            letter-spacing: 0.2px;
+        }
+
+        .pay-method-btn .pay-sublabel {
+            font-size: 11px;
+            font-weight: 500;
+            color: #a0aec0;
+            margin-top: -6px;
+        }
+
+        .pay-cancel-btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-top: 1px solid #f0f0f0;
+            background: #fafafa;
+            color: #a0aec0;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.15s, color 0.15s;
+            letter-spacing: 0.2px;
+        }
+
+        .pay-cancel-btn:hover {
+            background: #fff5f5;
+            color: #e53e3e;
+        }
+
         
 
         /* ── GCash QR Modal ── */
@@ -678,20 +756,28 @@
     <!-- ── Payment Method Selection Overlay ── -->
     <div class="pay-overlay" id="payOverlay">
         <div class="pay-modal">
-            <h2 style="margin-bottom:4px;">Select Payment Method</h2>
-            <p style="color:var(--text-light);font-size:13px;" id="payModalTotal"></p>
+            <div class="pay-modal-header">
+                <h2>Select Payment Method</h2>
+                <p>Total Amount</p>
+                <span class="pay-total-amount" id="payModalTotal"></span>
+            </div>
             <div class="pay-method-grid">
                 <button class="pay-method-btn cash-btn" onclick="selectPayment('Cash')">
-                    <i class="fa-solid fa-money-bill-wave" style="color:#38a169;"></i>
-                    Cash
+                    <div class="pay-icon-wrap">
+                        <i class="fa-solid fa-money-bill-wave"></i>
+                    </div>
+                    <span class="pay-label">Cash</span>
+                    <span class="pay-sublabel">Pay at counter</span>
                 </button>
                 <button class="pay-method-btn gcash-btn" onclick="selectPayment('GCash')">
-                    <i class="fa-solid fa-mobile-screen-button" style="color:#0070e0;"></i>
-                    GCash
+                    <div class="pay-icon-wrap">
+                        <i class="fa-solid fa-mobile-screen-button"></i>
+                    </div>
+                    <span class="pay-label">GCash</span>
+                    <span class="pay-sublabel">Scan QR to pay</span>
                 </button>
-
             </div>
-            <button onclick="closePayOverlay()" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;background:#f7fafc;color:var(--text-light);font-weight:600;cursor:pointer;">Cancel</button>
+            <button class="pay-cancel-btn" onclick="closePayOverlay()">Cancel</button>
         </div>
     </div>
 
@@ -1382,7 +1468,7 @@
             if (cart.length === 0) return alert('Cart is empty!');
             const total = document.getElementById('total').innerText;
             // Show payment method selection instead of going straight to success
-            document.getElementById('payModalTotal').innerText = `Total: ${total}`;
+            document.getElementById('payModalTotal').innerText = total;
             document.getElementById('payOverlay').style.display = 'flex';
         }
 
@@ -1414,7 +1500,7 @@
         function backToPayMethods() {
             document.getElementById('gcashOverlay').style.display = 'none';
             const total = document.getElementById('total').innerText;
-            document.getElementById('payModalTotal').innerText = `Total: ${total}`;
+            document.getElementById('payModalTotal').innerText = total;
             document.getElementById('payOverlay').style.display = 'flex';
         }
 
