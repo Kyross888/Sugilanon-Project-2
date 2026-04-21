@@ -537,11 +537,7 @@
             color: #0070e0;
         }
         
-        .pay-method-btn.card-btn:hover {
-            border-color: #805ad5;
-            background: #faf5ff;
-            color: #6b46c1;
-        }
+
         /* ── GCash QR Modal ── */
         
         .gcash-overlay {
@@ -693,10 +689,7 @@
                     <i class="fa-solid fa-mobile-screen-button" style="color:#0070e0;"></i>
                     GCash
                 </button>
-                <button class="pay-method-btn card-btn" onclick="selectPayment('Card')">
-                    <i class="fa-solid fa-credit-card" style="color:#805ad5;"></i>
-                    Card
-                </button>
+
             </div>
             <button onclick="closePayOverlay()" style="width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;background:#f7fafc;color:var(--text-light);font-weight:600;cursor:pointer;">Cancel</button>
         </div>
@@ -1404,7 +1397,7 @@
             if (method === 'GCash') {
                 showGCashQR();
             } else {
-                // Cash or Card — go straight to success
+                // Cash — go straight to success
                 const total = document.getElementById('total').innerText;
                 document.getElementById('final-total-msg').innerText =
                     `${method} Payment — Total: ${total}`;
