@@ -99,7 +99,27 @@ if ($action === 'list') {
          LIMIT ? OFFSET ?"
     );
     $stmt->execute([$limit, $offset]);
-    respond(['success' => true, 'data' => $stmt->fetchAll()]);
+    $orders = $stmt->fetchAll();
+
+    if (!empty($orders)) {
+        $ids = implode(',', array_map('intval', array_column($orders, 'id')));
+        $itemsStmt = $pdo->query(
+            "SELECT * FROM transaction_items WHERE transaction_id IN ($ids)"
+        );
+        $allItems = $itemsStmt->fetchAll();
+
+        // Group items by transaction_id
+        $itemsMap = [];
+        foreach ($allItems as $item) {
+            $itemsMap[$item['transaction_id']][] = $item;
+        }
+        foreach ($orders as &$order) {
+            $order['items'] = $itemsMap[$order['id']] ?? [];
+        }
+        unset($order);
+    }
+
+    respond(['success' => true, 'data' => $orders]);
 }
 
 // ── GET SINGLE ORDER (with items) ────────────────────────────
