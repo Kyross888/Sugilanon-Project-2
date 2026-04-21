@@ -398,8 +398,8 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
                     </div>
                 </div>
                 <div class="summary-card dish-card">
-                    <div class="dish-img-wrap">
-                        <img src="img/17233972.webp" alt="Best Dish">
+                    <div class="dish-img-wrap" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fffaf0,#feebc8);">
+                        <i class="fa-solid fa-utensils" style="font-size:28px;color:#ed8936;"></i>
                     </div>
                     <div>
                         <span class="dish-label"><i class="fa-solid fa-fire-flame-curved" style="margin-right:3px;"></i>Top Selling</span>
@@ -458,12 +458,25 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
             document.getElementById('sidebar').classList.toggle('collapsed');
         }
 
-        async function loadReport(date) {
-            const res = await api.salesReport.get({
-                date_from: date,
-                date_to: date
-            });
-            if (!res.success) return;
+        async function loadReport(selectedDate) {
+            const tbody = document.getElementById('salesTableBody');
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#718096;"><i class="fa-solid fa-spinner fa-spin"></i> Loading...</td></tr>';
+
+            let res;
+            try {
+                res = await api.salesReport.get({
+                    date_from: selectedDate,
+                    date_to: selectedDate
+                });
+            } catch (err) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#e53e3e;">Failed to load report. Please try again.</td></tr>';
+                return;
+            }
+
+            if (!res || !res.success) {
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#e53e3e;">Error loading report data.</td></tr>';
+                return;
+            }
 
             const {
                 summary,
@@ -478,7 +491,6 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
             document.getElementById('best-dish').textContent = best_seller ? best_seller.product_name : 'N/A';
 
             // Table
-            const tbody = document.getElementById('salesTableBody');
             tbody.innerHTML = '';
             if (!transactions.length) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#718096;">No transactions for this date.</td></tr>';
@@ -486,29 +498,31 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
             }
             transactions.forEach(t => {
                 const dt = new Date(t.created_at);
-                const time = dt.toLocaleTimeString('en-PH', {
+                const timeStr = dt.toLocaleTimeString('en-PH', {
                     hour: '2-digit',
                     minute: '2-digit'
                 });
-                const date = dt.toLocaleDateString('en-PH', {
+                const dateStr = dt.toLocaleDateString('en-PH', {
                     month: 'short',
                     day: 'numeric'
                 });
-                const badgeClass = t.payment_method === 'Cash' ? 'badge-cash' : t.payment_method === 'GCash' ? 'badge-gcash' : 'badge-card';
+                const payMethod = (t.payment_method || '').toLowerCase();
+                const badgeClass = payMethod === 'cash' ? 'badge-cash' : payMethod === 'gcash' ? 'badge-gcash' : 'badge-card';
                 tbody.innerHTML += `
                     <tr>
-                        <td>${time} | ${date}</td>
+                        <td>${timeStr} | ${dateStr}</td>
                         <td style="font-weight:600;">${t.reference_no}</td>
                         <td>${t.order_type}</td>
                         <td>${t.item_count} Item${t.item_count !== 1 ? 's' : ''}</td>
                         <td style="font-weight:700;">${fmt(t.total)}</td>
-                        <td><span class="status-badge ${badgeClass}">${t.payment_method.toUpperCase()}</span></td>
+                        <td><span class="status-badge ${badgeClass}">${(t.payment_method || '').toUpperCase()}</span></td>
                     </tr>`;
             });
         }
 
         async function init() {
-            await requireLogin();
+            const user = await requireLogin();
+            if (!user) return;
             const datePicker = document.querySelector('.date-picker');
             const today = new Date().toISOString().split('T')[0];
             datePicker.value = today;
