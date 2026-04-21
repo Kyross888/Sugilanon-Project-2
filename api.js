@@ -4,6 +4,13 @@
 
 const API_BASE = '';
 
+// ── Parse DB timestamp as UTC (DB stores UTC, no timezone marker) ──
+function parseUTC(ts) {
+    if (!ts) return new Date(NaN);
+    // Replace space with T and append Z so JS treats it as UTC
+    return new Date(ts.replace(' ', 'T') + 'Z');
+}
+
 // ── Fetch with timeout ────────────────────────────────────────
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
     const controller = new AbortController();
