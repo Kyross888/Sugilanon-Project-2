@@ -26,7 +26,7 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
     $rows = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.subtotal, t.discount, t.coupon_discount, t.total, t.created_at, u.first_name, u.last_name, (SELECT COUNT(*) FROM transaction_items WHERE transaction_id = t.id) AS item_count FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE DATE(t.created_at) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter ORDER BY t.created_at DESC");
     $rows->execute($params);
 
-    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id WHERE DATE(t.created_at) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter GROUP BY ti.product_name ORDER BY qty DESC LIMIT 1");
+    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty, p.image_path, p.icon FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id LEFT JOIN products p ON ti.product_id = p.id WHERE DATE(t.created_at) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter GROUP BY ti.product_name, p.image_path, p.icon ORDER BY qty DESC LIMIT 1");
     $best->execute($params);
     $bestSeller = $best->fetch();
 
@@ -398,8 +398,10 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
                     </div>
                 </div>
                 <div class="summary-card dish-card">
-                    <div class="dish-img-wrap" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fffaf0,#feebc8);">
-                        <i class="fa-solid fa-utensils" style="font-size:28px;color:#ed8936;"></i>
+                    <div class="dish-img-wrap" id="best-dish-img-wrap" style="display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#fffaf0,#feebc8);">
+                        <span id="best-dish-emoji" style="font-size:32px;"></span>
+                        <i class="fa-solid fa-utensils" id="best-dish-icon-fallback" style="font-size:28px;color:#ed8936;"></i>
+                        <img id="best-dish-img" src="" alt="Best Dish" style="display:none;width:100%;height:100%;object-fit:cover;border-radius:12px;">
                     </div>
                     <div>
                         <span class="dish-label"><i class="fa-solid fa-fire-flame-curved" style="margin-right:3px;"></i>Top Selling</span>
@@ -488,7 +490,33 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
             document.getElementById('kpi-revenue').textContent = fmt(summary.total_revenue);
             document.getElementById('kpi-orders').textContent = summary.total_orders;
             document.getElementById('kpi-discount').textContent = fmt(summary.total_discounts);
+            // Best dish name
             document.getElementById('best-dish').textContent = best_seller ? best_seller.product_name : 'N/A';
+
+            // Best dish image / emoji / icon fallback
+            const imgEl      = document.getElementById('best-dish-img');
+            const emojiEl    = document.getElementById('best-dish-emoji');
+            const faIconEl   = document.getElementById('best-dish-icon-fallback');
+
+            // Reset all
+            imgEl.style.display   = 'none';
+            emojiEl.textContent   = '';
+            faIconEl.style.display = 'inline-block';
+
+            if (best_seller) {
+                if (best_seller.image_path) {
+                    // Has a product image (base64 or URL)
+                    imgEl.src           = best_seller.image_path;
+                    imgEl.style.display = 'block';
+                    emojiEl.textContent = '';
+                    faIconEl.style.display = 'none';
+                } else if (best_seller.icon) {
+                    // Has an emoji icon
+                    emojiEl.textContent    = best_seller.icon;
+                    faIconEl.style.display = 'none';
+                }
+                // else: keep the default FA utensils icon
+            }
 
             // Table
             tbody.innerHTML = '';
