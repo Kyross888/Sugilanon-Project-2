@@ -463,7 +463,7 @@ if (!isset($_GET['action'])) {
             const dateVal = document.getElementById('dateFilter').value;
 
             const filtered = allOrders.filter(o => {
-                const dt = new Date(o.created_at);
+                const dt = parseUTC(o.created_at);
                 const dateStr = dt.toISOString().split('T')[0];
                 const itemNames = (o.items || []).map(i => (i.product_name || '').toLowerCase()).join(' ');
 
@@ -489,7 +489,7 @@ if (!isset($_GET['action'])) {
             }
 
             tbody.innerHTML = orders.map(o => {
-                const dt = new Date(o.created_at);
+                const dt = parseUTC(o.created_at);
                 const date = dt.toLocaleDateString('en-PH', {
                     year: 'numeric',
                     month: 'short',
@@ -540,7 +540,7 @@ if (!isset($_GET['action'])) {
             const o = allOrders.find(x => x.id === id);
             if (!o) return;
 
-            const dt = new Date(o.created_at);
+            const dt = parseUTC(o.created_at);
             document.getElementById('print-ref').innerText = o.reference_no;
             document.getElementById('print-date').innerText = dt.toLocaleString('en-PH');
             document.getElementById('print-type').innerText = o.order_type;
