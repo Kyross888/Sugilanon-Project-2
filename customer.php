@@ -432,7 +432,80 @@ if (!isset($_GET['action'])) {
         </div>
     </div>
 
-    <script src="js/api.js"></script>
+    <script>
+// ============================================================
+//  api.js — inlined
+// ============================================================
+const API_BASE = '';
+
+function parseUTC(ts) {
+    if (!ts) return new Date(NaN);
+    return new Date(ts.replace(' ', 'T') + 'Z');
+}
+
+async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+        const res = await fetch(url, { ...opts, signal: controller.signal });
+        clearTimeout(timer);
+        return res;
+    } catch (err) {
+        clearTimeout(timer);
+        if (err.name === 'AbortError') throw new Error('Request timed out.');
+        throw err;
+    }
+}
+
+const api = {
+    async request(endpoint, action, method = 'GET', body = null) {
+        const url = `${endpoint}.php?action=${action}`;
+        const opts = { method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json' } };
+        if (body) opts.body = JSON.stringify(body);
+        const res = await fetchWithTimeout(url, opts);
+        return res.json();
+    },
+    auth: {
+        login: (email, password, role) => api.request('auth', 'login', 'POST', { email, password, role }),
+        register: (payload) => api.request('auth', 'register', 'POST', payload),
+        logout: () => api.request('auth', 'logout', 'POST'),
+        me: () => api.request('auth', 'me'),
+    },
+    orders: {
+        place: (payload) => api.request('orders', 'place', 'POST', payload),
+        list: (params = {}) => {
+            const qs = new URLSearchParams({ action: 'list', ...params }).toString();
+            return fetchWithTimeout(`orders.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
+        },
+        get: (id) => fetchWithTimeout(`orders.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
+        void: (id) => fetchWithTimeout(`orders.php?action=void&id=${id}`, { method: 'POST', credentials: 'same-origin' }).then(r => r.json()),
+    },
+    customers: {
+        list: (search = '') => fetchWithTimeout(`customers.php?action=list${search ? '&search=' + encodeURIComponent(search) : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
+        get: (id) => fetchWithTimeout(`customers.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
+        create: (data) => api.request('customers', 'create', 'POST', data),
+        update: (id, data) => fetchWithTimeout(`customers.php?action=update&id=${id}`, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }).then(r => r.json()),
+        delete: (id) => fetchWithTimeout(`customers.php?action=delete&id=${id}`, { method: 'POST', credentials: 'same-origin' }).then(r => r.json()),
+    },
+};
+
+async function requireLogin() {
+    try {
+        const res = await api.auth.me();
+        if (!res || !res.success) { window.location.href = 'login.php'; return null; }
+        const el = document.getElementById('userGreeting');
+        if (el) el.textContent = res.user.name;
+        return res.user;
+    } catch (err) {
+        window.location.href = 'login.php';
+        return null;
+    }
+}
+
+function fmt(n) {
+    return '₱' + parseFloat(n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+}
+    </script>
     <script>
         let allOrders = [];
 
