@@ -445,24 +445,15 @@ if (!isset($_GET['action'])) {
         // ── Load all transactions + their items ───────────────
         async function loadOrders() {
             const tbody = document.getElementById('customerTableBody');
-            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#718096;">Loading orders…</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#718096;">Loading orders\u2026</td></tr>';
 
-            const res = await api.orders.list({
-                page: 1
-            });
+            const res = await api.orders.list({ page: 1 });
             if (!res.success) {
                 tbody.innerHTML = `<tr><td colspan="6" style="color:red;padding:20px;">Failed to load orders: ${res.error}</td></tr>`;
                 return;
             }
 
-            // Fetch full details (with items) for each transaction
-            const detailPromises = res.data.map(o => api.orders.get(o.id));
-            const details = await Promise.all(detailPromises);
-
-            allOrders = details
-                .filter(d => d.success)
-                .map(d => d.data);
-
+            allOrders = res.data;
             filterOrders();
         }
 
