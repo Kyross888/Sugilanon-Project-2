@@ -21,6 +21,7 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
+    $pdo->exec("SET time_zone = '+00:00'");
 } catch (PDOException $e) {
     http_response_code(500);
     header('Content-Type: application/json');
