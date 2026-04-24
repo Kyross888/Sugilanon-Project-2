@@ -11,6 +11,9 @@ $isApiRequest = ($_SERVER['REQUEST_METHOD'] === 'POST') || isset($_GET['action']
 
 if ($isApiRequest) {
     ob_end_clean(); // Discard any accidental output
+    // Suppress notices/warnings so they don't corrupt JSON output
+    error_reporting(E_ERROR);
+    ini_set('display_errors', '0');
     header('Content-Type: application/json');
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type');
@@ -55,11 +58,20 @@ if ($isApiRequest) {
         $pdo->prepare("INSERT INTO password_resets (user_id, code, expires_at) VALUES (?, ?, ?)")
             ->execute([$user['id'], $code, $expires]);
 
-        $smsSent = sendSMS($phone, "Luna's POS: Your password reset code is {$code}. Valid for 10 minutes. Do not share this code.");
         $phoneMasked = substr($phone, 0, 4) . '***' . substr($phone, -4);
+        $devMode = (SMS_API_KEY === 'YOUR_SEMAPHORE_API_KEY_HERE');
 
+        if ($devMode) {
+            // SMS not configured — log code so admin can see it, and return it to UI for testing
+            error_log("[DEV] Password reset code for {$phone}: {$code}");
+            respond(['success' => true, 'phone_hint' => $phoneMasked, 'dev_code' => $code]);
+        }
+
+        $smsSent = sendSMS($phone, "Luna's POS: Your password reset code is {$code}. Valid for 10 minutes. Do not share this code.");
         if (!$smsSent) {
-            error_log("FORGOT PASSWORD: code={$code} for user_id={$user['id']} phone={$phone}");
+            error_log("FORGOT PASSWORD SMS FAILED: code={$code} for user_id={$user['id']} phone={$phone}");
+            // SMS failed but code is saved — tell user to contact admin
+            respond(['success' => true, 'phone_hint' => $phoneMasked, 'sms_failed' => true]);
         }
 
         respond(['success' => true, 'phone_hint' => $phoneMasked]);
@@ -465,11 +477,22 @@ if (!$isApiRequest) {
             }
 
             resetPhone = phone;
-            document.getElementById('step2-sub').textContent =
-                `A 6-digit code was sent to ${res.phone_hint}.`;
+
+            // Dev mode: SMS not configured — show code on screen so admin can test
+            if (res.dev_code) {
+                document.getElementById('step2-sub').textContent =
+                    `⚠️ SMS not configured. Your test code is: ${res.dev_code}`;
+                showMsg(2, `<strong>Dev Mode:</strong> SMS API key not set. Code: <strong>${res.dev_code}</strong>`, 'success');
+            } else if (res.sms_failed) {
+                document.getElementById('step2-sub').textContent =
+                    `SMS delivery failed. Please contact your admin for the code sent to ${res.phone_hint}.`;
+            } else {
+                document.getElementById('step2-sub').textContent =
+                    `A 6-digit code was sent to ${res.phone_hint}.`;
+            }
 
             if (isResend) showMsg(2, '✓ New code sent!', 'success');
-            else goStep(2);
+            goStep(2);
         }
 
         function nextDigit(el, nextId) {
