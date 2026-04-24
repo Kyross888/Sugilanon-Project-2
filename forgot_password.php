@@ -1,28 +1,34 @@
 <?php
 // ============================================================
-//  forgot_password.php  —  Password Reset UI + SMS API
+//  forgot_password.php  —  Password Reset via Email (Gmail SMTP)
 //  GET              → HTML page
 //  POST ?action=xxx → JSON API response
+//
+//  HOW TO SET UP (free):
+//  1. Go to myaccount.google.com → Security → 2-Step Verification (enable it)
+//  2. Then go to myaccount.google.com/apppasswords
+//  3. Create an App Password → copy the 16-character password
+//  4. In Railway Variables, add:
+//       GMAIL_USER = yourgmail@gmail.com
+//       GMAIL_PASS = your16charapppassword
 // ============================================================
-ob_start(); // Buffer output so headers can still be sent
+ob_start();
 
-// Handle API requests FIRST — before any HTML is output
 $isApiRequest = ($_SERVER['REQUEST_METHOD'] === 'POST') || isset($_GET['action']);
 
 if ($isApiRequest) {
-    ob_end_clean(); // Discard any accidental output
-    // Suppress notices/warnings so they don't corrupt JSON output
+    ob_end_clean();
     error_reporting(E_ERROR);
     ini_set('display_errors', '0');
 
-    require_once 'db.php'; // db.php also defines respond() — do NOT redefine it here
+    require_once 'db.php';
 
     header('Content-Type: application/json');
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type');
 
-    if (!defined('SMS_API_KEY')) define('SMS_API_KEY', ''YOUR_SEMAPHORE_API_KEY_HERE'');
-    if (!defined('SMS_SENDER'))  define('SMS_SENDER',  'LunasPOS');
+    $GMAIL_USER = getenv('GMAIL_USER') ?: '';
+    $GMAIL_PASS = getenv('GMAIL_PASS') ?: '';
 
     $action = $_GET['action'] ?? '';
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -35,14 +41,19 @@ if ($isApiRequest) {
             respond(['success' => false, 'error' => 'Enter a valid PH mobile number starting with 09.'], 400);
         }
 
-        $stmt = $pdo->prepare("SELECT id, first_name, phone FROM users WHERE phone = ? LIMIT 1");
+        // Find user by phone number, get their email too
+        $stmt = $pdo->prepare("SELECT id, first_name, email, phone FROM users WHERE phone = ? LIMIT 1");
         $stmt->execute([$phone]);
         $user = $stmt->fetch();
-        if (!$user) respond(['success' => false, 'error' => 'No account found with that mobile number.'], 404);
+        if (!$user) {
+            respond(['success' => false, 'error' => 'No account found with that mobile number.'], 404);
+        }
 
+        // Generate 6-digit code
         $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $expires = date('Y-m-d H:i:s', time() + 600);
+        $expires = date('Y-m-d H:i:s', time() + 600); // 10 minutes
 
+        // Ensure password_resets table exists
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS password_resets (
                 id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -55,27 +66,33 @@ if ($isApiRequest) {
             )"
         );
 
+        // Delete old codes for this user
         $pdo->prepare("DELETE FROM password_resets WHERE user_id = ?")->execute([$user['id']]);
+
+        // Save new code
         $pdo->prepare("INSERT INTO password_resets (user_id, code, expires_at) VALUES (?, ?, ?)")
             ->execute([$user['id'], $code, $expires]);
 
-        $phoneMasked = substr($phone, 0, 4) . '***' . substr($phone, -4);
-        $devMode = (SMS_API_KEY === 'YOUR_SEMAPHORE_API_KEY_HERE');
+        // Mask email: lunas@gmail.com → l***@gmail.com
+        [$emailLocal, $emailDomain] = explode('@', $user['email']);
+        $emailMasked = substr($emailLocal, 0, 1) . '***@' . $emailDomain;
 
+        // Dev mode: Gmail not configured
+        $devMode = ($GMAIL_USER === '' || $GMAIL_PASS === '');
         if ($devMode) {
-            // SMS not configured — log code so admin can see it, and return it to UI for testing
-            error_log("[DEV] Password reset code for {$phone}: {$code}");
-            respond(['success' => true, 'phone_hint' => $phoneMasked, 'dev_code' => $code]);
+            error_log("[DEV] Password reset code for {$user['email']}: {$code}");
+            respond(['success' => true, 'email_hint' => $emailMasked, 'dev_code' => $code]);
         }
 
-        $smsSent = sendSMS($phone, "Luna's POS: Your password reset code is {$code}. Valid for 10 minutes. Do not share this code.");
-        if (!$smsSent) {
-            error_log("FORGOT PASSWORD SMS FAILED: code={$code} for user_id={$user['id']} phone={$phone}");
-            // SMS failed but code is saved — tell user to contact admin
-            respond(['success' => true, 'phone_hint' => $phoneMasked, 'sms_failed' => true]);
+        // Send email via Gmail SMTP
+        $sent = sendResetEmail($user['email'], $user['first_name'], $code, $GMAIL_USER, $GMAIL_PASS);
+
+        if (!$sent) {
+            error_log("EMAIL FAILED: code={$code} for user_id={$user['id']} email={$user['email']}");
+            respond(['success' => true, 'email_hint' => $emailMasked, 'email_failed' => true, 'dev_code' => $code]);
         }
 
-        respond(['success' => true, 'phone_hint' => $phoneMasked]);
+        respond(['success' => true, 'email_hint' => $emailMasked]);
     }
 
     // ── VERIFY CODE ────────────────────────────────────────
@@ -95,7 +112,9 @@ if ($isApiRequest) {
         );
         $stmt->execute([$user['id'], $code]);
         $reset = $stmt->fetch();
-        if (!$reset) respond(['success' => false, 'error' => 'Invalid or expired code. Please request a new one.'], 400);
+        if (!$reset) {
+            respond(['success' => false, 'error' => 'Invalid or expired code. Please request a new one.'], 400);
+        }
 
         $token = bin2hex(random_bytes(32));
         $pdo->prepare("UPDATE password_resets SET token = ? WHERE id = ?")->execute([$token, $reset['id']]);
@@ -115,7 +134,9 @@ if ($isApiRequest) {
         );
         $stmt->execute([$token]);
         $reset = $stmt->fetch();
-        if (!$reset) respond(['success' => false, 'error' => 'Invalid or expired token. Please restart the reset process.'], 400);
+        if (!$reset) {
+            respond(['success' => false, 'error' => 'Invalid or expired token. Please restart the reset process.'], 400);
+        }
 
         $hash = password_hash($newPw, PASSWORD_BCRYPT);
         $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $reset['user_id']]);
@@ -126,45 +147,89 @@ if ($isApiRequest) {
     respond(['success' => false, 'error' => 'Unknown action.'], 400);
 }
 
-// ── HELPER: Send SMS via Semaphore ─────────────────────────
-function sendSMS(string $number, string $message): bool {
-    if (SMS_API_KEY === 'YOUR_SEMAPHORE_API_KEY_HERE') {
-        error_log("SMS not configured. Set SMS_API_KEY in forgot_password.php");
-        return false;
-    }
-    $number = preg_replace('/\D/', '', $number);
-    if (str_starts_with($number, '0')) $number = '63' . substr($number, 1);
+// ── HELPER: Send email via Gmail SMTP (no library needed) ──
+function sendResetEmail(string $to, string $name, string $code, string $gmailUser, string $gmailPass): bool {
+    $subject = "Your Password Reset Code - Luna's POS";
+    $message = "
+    <html><body style='font-family:sans-serif;background:#f8fafc;padding:20px'>
+    <div style='max-width:480px;margin:0 auto;background:white;border-radius:16px;padding:32px;box-shadow:0 4px 12px rgba(0,0,0,0.08)'>
+        <div style='text-align:center;margin-bottom:24px'>
+            <div style='background:#eef2ff;border-radius:16px;width:64px;height:64px;display:inline-flex;align-items:center;justify-content:center;font-size:32px'>🔐</div>
+        </div>
+        <h2 style='color:#1e293b;text-align:center;margin:0 0 8px'>Password Reset Code</h2>
+        <p style='color:#64748b;text-align:center;margin:0 0 28px'>Hi {$name}, use the code below to reset your password.</p>
+        <div style='background:#eef2ff;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px'>
+            <div style='font-size:40px;font-weight:800;letter-spacing:12px;color:#4f46e5'>{$code}</div>
+        </div>
+        <p style='color:#94a3b8;font-size:13px;text-align:center'>This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
+        <hr style='border:none;border-top:1px solid #e2e8f0;margin:24px 0'>
+        <p style='color:#94a3b8;font-size:12px;text-align:center'>If you did not request a password reset, you can safely ignore this email.</p>
+    </div>
+    </body></html>";
 
-    $ch = curl_init('https://api.semaphore.co/api/v4/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'apikey'     => SMS_API_KEY,
-            'number'     => $number,
-            'message'    => $message,
-            'sendername' => SMS_SENDER,
-        ]),
-        CURLOPT_TIMEOUT => 15,
-    ]);
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    error_log("Semaphore SMS response [{$httpCode}]: " . $response);
-    return $httpCode === 200;
+    // Use PHP's mail() with SMTP — works on most hosts
+    // For Railway, we use socket-based SMTP directly
+    return sendSmtp($to, $subject, $message, $gmailUser, $gmailPass);
 }
 
-// respond() is already defined in db.php — no redefinition needed
+function sendSmtp(string $to, string $subject, string $htmlBody, string $user, string $pass): bool {
+    try {
+        $socket = fsockopen('ssl://smtp.gmail.com', 465, $errno, $errstr, 15);
+        if (!$socket) return false;
 
-// ── HTML PAGE (GET requests only) ──────────────────────────
+        $read = fgets($socket, 512);
+        if (strpos($read, '220') === false) { fclose($socket); return false; }
+
+        $cmds = [
+            "EHLO railway.app\r\n",
+            "AUTH LOGIN\r\n",
+            base64_encode($user) . "\r\n",
+            base64_encode($pass) . "\r\n",
+            "MAIL FROM:<{$user}>\r\n",
+            "RCPT TO:<{$to}>\r\n",
+            "DATA\r\n",
+        ];
+
+        foreach ($cmds as $cmd) {
+            fwrite($socket, $cmd);
+            $resp = fgets($socket, 512);
+            // AUTH LOGIN responses: 334 for prompts, 235 for success
+            // MAIL/RCPT: 250, DATA: 354
+            $code = (int)substr($resp, 0, 3);
+            if (!in_array($code, [220, 235, 250, 334, 354])) {
+                error_log("SMTP error on cmd [{$cmd}]: {$resp}");
+                fclose($socket);
+                return false;
+            }
+        }
+
+        // Send email body
+        $boundary = md5(time());
+        $headers  = "From: Luna's POS <{$user}>\r\n";
+        $headers .= "To: {$to}\r\n";
+        $headers .= "Subject: {$subject}\r\n";
+        $headers .= "MIME-Version: 1.0\r\n";
+        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
+
+        fwrite($socket, $headers . "\r\n" . $htmlBody . "\r\n.\r\n");
+        $resp = fgets($socket, 512);
+        fwrite($socket, "QUIT\r\n");
+        fclose($socket);
+
+        return strpos($resp, '250') !== false;
+    } catch (\Throwable $e) {
+        error_log("SMTP exception: " . $e->getMessage());
+        return false;
+    }
+}
+
+// ── HTML PAGE ──────────────────────────────────────────────
 if (!$isApiRequest) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <meta charset="UTF-8">
-    <!-- PWA Manifest & Theme -->
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4f46e5">
     <meta name="mobile-web-app-capable" content="yes">
@@ -178,397 +243,212 @@ if (!$isApiRequest) {
     <title>Forgot Password - POS System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-         :root {
-            --primary: #4f46e5;
-            --bg: #f8fafc;
-            --success: #38a169;
-            --danger: #e53e3e;
-        }
-        
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'SF Pro Display', sans-serif;
-        }
-        
-        body {
-            background: var(--bg);
-            height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .card {
-            background: white;
-            width: 100%;
-            max-width: 420px;
-            padding: 40px;
-            border-radius: 24px;
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-            text-align: center;
-        }
-        
-        .logo {
-            width: 80px;
-            height: 80px;
-            background: #eef2ff;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            font-size: 32px;
-            color: var(--primary);
-        }
-        
-        h2 {
-            color: #1e293b;
-            margin-bottom: 6px;
-            font-size: 1.6rem;
-        }
-        
-        p.sub {
-            color: #64748b;
-            margin-bottom: 28px;
-            font-size: 14px;
-        }
-        
-        .step {
-            display: none;
-        }
-        
-        .step.active {
-            display: block;
-        }
-        
-        .form-group {
-            text-align: left;
-            margin-bottom: 18px;
-        }
-        
-        label {
-            display: block;
-            margin-bottom: 7px;
-            font-weight: 500;
-            color: #475569;
-            font-size: 14px;
-        }
-        
-        input {
-            width: 100%;
-            padding: 14px;
-            border: 1px solid #e2e8f0;
-            border-radius: 12px;
-            font-size: 1rem;
-            outline: none;
-            transition: 0.2s;
-        }
-        
-        input:focus {
-            border-color: var(--primary);
-            outline: 2px solid #c7d2fe;
-        }
-        
-        .btn {
-            width: 100%;
-            padding: 15px;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: 12px;
-            font-size: 1rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: 0.2s;
-            margin-top: 6px;
-        }
-        
-        .btn:hover {
-            opacity: 0.9;
-            transform: translateY(-1px);
-        }
-        
-        .btn:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .back-link {
-            margin-top: 22px;
-            color: #64748b;
-            font-size: 14px;
-        }
-        
-        .back-link a {
-            color: var(--primary);
-            text-decoration: none;
-            font-weight: 600;
-        }
-        
-        .alert {
-            padding: 12px 16px;
-            border-radius: 10px;
-            font-size: 13px;
-            margin-bottom: 18px;
-            text-align: left;
-        }
-        
-        .alert-error {
-            background: #fff5f5;
-            color: var(--danger);
-            border: 1px solid #fed7d7;
-        }
-        
-        .alert-success {
-            background: #f0fff4;
-            color: var(--success);
-            border: 1px solid #c6f6d5;
-        }
-        
-        .code-inputs {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-bottom: 20px;
-        }
-        
-        .code-inputs input {
-            width: 50px;
-            height: 56px;
-            text-align: center;
-            font-size: 22px;
-            font-weight: 700;
-            border-radius: 10px;
-            padding: 0;
-        }
-        
-        .note {
-            background: #eef2ff;
-            color: #4338ca;
-            padding: 12px;
-            border-radius: 10px;
-            font-size: 12px;
-            text-align: left;
-            margin-bottom: 20px;
-        }
+        :root { --primary: #4f46e5; --bg: #f8fafc; --success: #38a169; --danger: #e53e3e; }
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'SF Pro Display', sans-serif; }
+        body { background: var(--bg); height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+        .card { background: white; width: 100%; max-width: 420px; padding: 40px; border-radius: 24px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); text-align: center; }
+        .logo { width: 80px; height: 80px; background: #eef2ff; border-radius: 20px; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px; font-size: 32px; color: var(--primary); }
+        h2 { color: #1e293b; margin-bottom: 6px; font-size: 1.6rem; }
+        p.sub { color: #64748b; margin-bottom: 28px; font-size: 14px; }
+        .step { display: none; }
+        .step.active { display: block; }
+        .form-group { text-align: left; margin-bottom: 18px; }
+        label { display: block; margin-bottom: 7px; font-weight: 500; color: #475569; font-size: 14px; }
+        input { width: 100%; padding: 14px; border: 1px solid #e2e8f0; border-radius: 12px; font-size: 1rem; outline: none; transition: 0.2s; }
+        input:focus { border-color: var(--primary); outline: 2px solid #c7d2fe; }
+        .btn { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 12px; font-size: 1rem; font-weight: 700; cursor: pointer; transition: 0.2s; margin-top: 6px; }
+        .btn:hover { opacity: 0.9; transform: translateY(-1px); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+        .back-link { margin-top: 22px; color: #64748b; font-size: 14px; }
+        .back-link a { color: var(--primary); text-decoration: none; font-weight: 600; }
+        .alert { padding: 12px 16px; border-radius: 10px; font-size: 13px; margin-bottom: 18px; text-align: left; }
+        .alert-error { background: #fff5f5; color: var(--danger); border: 1px solid #fed7d7; }
+        .alert-success { background: #f0fff4; color: var(--success); border: 1px solid #c6f6d5; }
+        .alert-warn { background: #fffbeb; color: #92400e; border: 1px solid #fde68a; }
+        .code-inputs { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+        .code-inputs input { width: 50px; height: 56px; text-align: center; font-size: 22px; font-weight: 700; border-radius: 10px; padding: 0; }
+        .note { background: #eef2ff; color: #4338ca; padding: 12px; border-radius: 10px; font-size: 12px; text-align: left; margin-bottom: 20px; }
     </style>
 </head>
-
 <body>
-    <div class="card">
-        <div class="logo"><i class="fa-solid fa-lock"></i></div>
+<div class="card">
+    <div class="logo"><i class="fa-solid fa-lock"></i></div>
 
-        <!-- Step 1: Enter phone number -->
-        <div class="step active" id="step1">
-            <h2>Forgot Password?</h2>
-            <p class="sub">Enter your registered mobile number and we'll send an SMS reset code to that number.</p>
-            <div id="msg1"></div>
-            <div class="form-group">
-                <label>Mobile Number</label>
-                <input type="tel" id="phone-input" placeholder="09171234567" maxlength="11">
-            </div>
-            <button class="btn" onclick="sendCode()">
-                <i class="fa-solid fa-paper-plane"></i> Send Reset Code
-            </button>
-            <div class="back-link">Remember your password? <a href="login.php">Sign In</a></div>
+    <!-- Step 1: Enter phone number -->
+    <div class="step active" id="step1">
+        <h2>Forgot Password?</h2>
+        <p class="sub">Enter your registered mobile number and we'll send a reset code to your email address.</p>
+        <div id="msg1"></div>
+        <div class="form-group">
+            <label>Mobile Number</label>
+            <input type="tel" id="phone-input" placeholder="09171234567" maxlength="11">
         </div>
+        <button class="btn" onclick="sendCode()">
+            <i class="fa-solid fa-envelope"></i> Send Reset Code
+        </button>
+        <div class="back-link">Remember your password? <a href="login.php">Sign In</a></div>
+    </div>
 
-        <!-- Step 2: Enter SMS code -->
-        <div class="step" id="step2">
-            <h2>Enter Code</h2>
-            <p class="sub" id="step2-sub">A 6-digit code was sent to your phone.</p>
-            <div id="msg2"></div>
-            <div class="note">
-                <i class="fa-solid fa-circle-info"></i> The code expires in <strong>10 minutes</strong>. Check your SMS inbox.
-            </div>
-            <div class="code-inputs">
-                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d1" oninput="nextDigit(this,'d2')" onkeydown="prevDigit(event,'')">
-                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d2" oninput="nextDigit(this,'d3')" onkeydown="prevDigit(event,'d1')">
-                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d3" oninput="nextDigit(this,'d4')" onkeydown="prevDigit(event,'d2')">
-                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d4" oninput="nextDigit(this,'d5')" onkeydown="prevDigit(event,'d3')">
-                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d5" oninput="nextDigit(this,'d6')" onkeydown="prevDigit(event,'d4')">
-                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d6" oninput="nextDigit(this,'')" onkeydown="prevDigit(event,'d5')">
-            </div>
-            <button class="btn" onclick="verifyCode()">Verify Code</button>
-            <div class="back-link" style="margin-top:14px;">
-                <a href="#" onclick="goStep(1)">← Back</a> &nbsp;|&nbsp;
-                <a href="#" onclick="sendCode(true)">Resend Code</a>
-            </div>
+    <!-- Step 2: Enter code -->
+    <div class="step" id="step2">
+        <h2>Check Your Email</h2>
+        <p class="sub" id="step2-sub">A 6-digit code was sent to your email.</p>
+        <div id="msg2"></div>
+        <div class="note">
+            <i class="fa-solid fa-circle-info"></i> The code expires in <strong>10 minutes</strong>. Check your inbox and spam folder.
         </div>
-
-        <!-- Step 3: Set new password -->
-        <div class="step" id="step3">
-            <h2>New Password</h2>
-            <p class="sub">Create a strong new password for your account.</p>
-            <div id="msg3"></div>
-            <div class="form-group">
-                <label>New Password</label>
-                <input type="password" id="new-pw" placeholder="At least 6 characters">
-            </div>
-            <div class="form-group">
-                <label>Confirm Password</label>
-                <input type="password" id="confirm-pw" placeholder="Repeat new password">
-            </div>
-            <button class="btn" onclick="resetPassword()">
-                <i class="fa-solid fa-check"></i> Reset Password
-            </button>
+        <div class="code-inputs">
+            <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d1" oninput="nextDigit(this,'d2')" onkeydown="prevDigit(event,'')">
+            <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d2" oninput="nextDigit(this,'d3')" onkeydown="prevDigit(event,'d1')">
+            <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d3" oninput="nextDigit(this,'d4')" onkeydown="prevDigit(event,'d2')">
+            <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d4" oninput="nextDigit(this,'d5')" onkeydown="prevDigit(event,'d3')">
+            <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d5" oninput="nextDigit(this,'d6')" onkeydown="prevDigit(event,'d4')">
+            <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d6" oninput="nextDigit(this,'')" onkeydown="prevDigit(event,'d5')">
         </div>
-
-        <!-- Step 4: Done -->
-        <div class="step" id="step4">
-            <div style="font-size:60px;color:var(--success);margin-bottom:20px;">✅</div>
-            <h2>Password Reset!</h2>
-            <p class="sub">Your password has been changed successfully. You can now log in with your new password.</p>
-            <a href="login.php" class="btn" style="display:block;text-decoration:none;margin-top:10px;">
-                Go to Login
-            </a>
+        <button class="btn" onclick="verifyCode()">Verify Code</button>
+        <div class="back-link" style="margin-top:14px;">
+            <a href="#" onclick="goStep(1)">← Back</a> &nbsp;|&nbsp;
+            <a href="#" onclick="sendCode(true)">Resend Code</a>
         </div>
     </div>
 
-    <script>
-        let resetPhone = '';
-        let resetToken = '';
+    <!-- Step 3: New password -->
+    <div class="step" id="step3">
+        <h2>New Password</h2>
+        <p class="sub">Create a strong new password for your account.</p>
+        <div id="msg3"></div>
+        <div class="form-group">
+            <label>New Password</label>
+            <input type="password" id="new-pw" placeholder="At least 6 characters">
+        </div>
+        <div class="form-group">
+            <label>Confirm Password</label>
+            <input type="password" id="confirm-pw" placeholder="Repeat new password">
+        </div>
+        <button class="btn" onclick="resetPassword()">
+            <i class="fa-solid fa-check"></i> Reset Password
+        </button>
+    </div>
 
-        function goStep(n) {
-            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-            document.getElementById('step' + n).classList.add('active');
+    <!-- Step 4: Done -->
+    <div class="step" id="step4">
+        <div style="font-size:60px;color:var(--success);margin-bottom:20px;">✅</div>
+        <h2>Password Reset!</h2>
+        <p class="sub">Your password has been changed successfully.</p>
+        <a href="login.php" class="btn" style="display:block;text-decoration:none;margin-top:10px;">Go to Login</a>
+    </div>
+</div>
+
+<script>
+    let resetPhone = '';
+    let resetToken = '';
+
+    function goStep(n) {
+        document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+        document.getElementById('step' + n).classList.add('active');
+    }
+
+    function showMsg(stepNum, msg, type) {
+        const el = document.getElementById('msg' + stepNum);
+        el.innerHTML = msg ? `<div class="alert alert-${type}">${msg}</div>` : '';
+    }
+
+    async function sendCode(isResend = false) {
+        const phone = document.getElementById('phone-input').value.trim();
+        if (!phone) { showMsg(1, 'Please enter your mobile number.', 'error'); return; }
+        if (!/^09\d{9}$/.test(phone)) { showMsg(1, 'Enter a valid PH mobile number starting with 09.', 'error'); return; }
+
+        const btn = document.querySelector('#step1 .btn');
+        btn.disabled = true;
+        btn.textContent = 'Sending…';
+
+        const res = await fetch('forgot_password.php?action=send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone }),
+        }).then(r => r.json()).catch(() => null);
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-envelope"></i> Send Reset Code';
+
+        if (!res || !res.success) {
+            showMsg(1, res?.error || 'Failed to send code. Please try again.', 'error');
+            return;
         }
 
-        function showMsg(stepNum, msg, type) {
-            const el = document.getElementById('msg' + stepNum);
-            el.innerHTML = msg ? `<div class="alert alert-${type}">${msg}</div>` : '';
+        resetPhone = phone;
+
+        if (res.dev_code) {
+            // Gmail not configured — show code on screen
+            document.getElementById('step2-sub').textContent = '⚠️ Email not configured. Test code: ' + res.dev_code;
+            showMsg(2, `<strong>Dev Mode:</strong> Gmail not set up yet. Your code is: <strong style="font-size:18px">${res.dev_code}</strong>`, 'warn');
+        } else if (res.email_failed) {
+            document.getElementById('step2-sub').textContent = '⚠️ Email delivery failed. Test code: ' + res.dev_code;
+            showMsg(2, `<strong>Email failed.</strong> Your code is: <strong style="font-size:18px">${res.dev_code}</strong>`, 'warn');
+        } else {
+            document.getElementById('step2-sub').textContent = `A 6-digit code was sent to ${res.email_hint}. Check your inbox.`;
         }
 
-        async function sendCode(isResend = false) {
-            const phone = document.getElementById('phone-input').value.trim();
-            if (!phone) {
-                showMsg(1, 'Please enter your mobile number.', 'error');
-                return;
-            }
-            if (!/^09\d{9}$/.test(phone)) {
-                showMsg(1, 'Enter a valid PH mobile number starting with 09 (e.g. 09171234567).', 'error');
-                return;
-            }
+        if (isResend) showMsg(2, '✓ New code sent! Check your email.', 'success');
+        goStep(2);
+    }
 
-            const btn = document.querySelector('#step1 .btn');
-            btn.disabled = true;
-            btn.textContent = 'Sending…';
+    function nextDigit(el, nextId) {
+        el.value = el.value.replace(/\D/, '');
+        if (el.value && nextId) document.getElementById(nextId).focus();
+    }
 
-            const res = await fetch('forgot_password.php?action=send', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone }),
-            }).then(r => r.json()).catch(() => null);
+    function prevDigit(e, prevId) {
+        if (e.key === 'Backspace' && !e.target.value && prevId) document.getElementById(prevId).focus();
+    }
 
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Reset Code';
+    async function verifyCode() {
+        const code = ['d1','d2','d3','d4','d5','d6'].map(id => document.getElementById(id).value).join('');
+        if (code.length < 6) { showMsg(2, 'Enter all 6 digits.', 'error'); return; }
 
-            if (!res || !res.success) {
-                showMsg(1, res?.error || 'Failed to send code. Check your number and try again.', 'error');
-                return;
-            }
+        const btn = document.querySelector('#step2 .btn');
+        btn.disabled = true;
+        btn.textContent = 'Verifying…';
 
-            resetPhone = phone;
+        const res = await fetch('forgot_password.php?action=verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ phone: resetPhone, code }),
+        }).then(r => r.json()).catch(() => null);
 
-            // Dev mode: SMS not configured — show code on screen so admin can test
-            if (res.dev_code) {
-                document.getElementById('step2-sub').textContent =
-                    `⚠️ SMS not configured. Your test code is: ${res.dev_code}`;
-                showMsg(2, `<strong>Dev Mode:</strong> SMS API key not set. Code: <strong>${res.dev_code}</strong>`, 'success');
-            } else if (res.sms_failed) {
-                document.getElementById('step2-sub').textContent =
-                    `SMS delivery failed. Please contact your admin for the code sent to ${res.phone_hint}.`;
-            } else {
-                document.getElementById('step2-sub').textContent =
-                    `A 6-digit code was sent to ${res.phone_hint}.`;
-            }
+        btn.disabled = false;
+        btn.textContent = 'Verify Code';
 
-            if (isResend) showMsg(2, '✓ New code sent!', 'success');
-            goStep(2);
-        }
+        if (!res || !res.success) { showMsg(2, res?.error || 'Invalid or expired code.', 'error'); return; }
+        resetToken = res.token;
+        goStep(3);
+    }
 
-        function nextDigit(el, nextId) {
-            // Only allow digits
-            el.value = el.value.replace(/\D/, '');
-            if (el.value && nextId) document.getElementById(nextId).focus();
-        }
+    async function resetPassword() {
+        const newPw  = document.getElementById('new-pw').value;
+        const confPw = document.getElementById('confirm-pw').value;
+        if (!newPw || !confPw) { showMsg(3, 'Both fields are required.', 'error'); return; }
+        if (newPw !== confPw)  { showMsg(3, 'Passwords do not match.', 'error'); return; }
+        if (newPw.length < 6)  { showMsg(3, 'Password must be at least 6 characters.', 'error'); return; }
 
-        function prevDigit(e, prevId) {
-            if (e.key === 'Backspace' && !e.target.value && prevId) document.getElementById(prevId).focus();
-        }
+        const btn = document.querySelector('#step3 .btn');
+        btn.disabled = true;
+        btn.textContent = 'Resetting…';
 
-        async function verifyCode() {
-            const code = ['d1', 'd2', 'd3', 'd4', 'd5', 'd6'].map(id => document.getElementById(id).value).join('');
-            if (code.length < 6) {
-                showMsg(2, 'Enter all 6 digits.', 'error');
-                return;
-            }
+        const res = await fetch('forgot_password.php?action=reset', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: resetToken, new_password: newPw }),
+        }).then(r => r.json()).catch(() => null);
 
-            const btn = document.querySelector('#step2 .btn');
-            btn.disabled = true;
-            btn.textContent = 'Verifying…';
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-check"></i> Reset Password';
 
-            const res = await fetch('forgot_password.php?action=verify', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone: resetPhone, code }),
-            }).then(r => r.json()).catch(() => null);
-
-            btn.disabled = false;
-            btn.textContent = 'Verify Code';
-
-            if (!res || !res.success) {
-                showMsg(2, res?.error || 'Invalid or expired code.', 'error');
-                return;
-            }
-
-            resetToken = res.token;
-            goStep(3);
-        }
-
-        async function resetPassword() {
-            const newPw = document.getElementById('new-pw').value;
-            const confPw = document.getElementById('confirm-pw').value;
-            if (!newPw || !confPw) {
-                showMsg(3, 'Both fields are required.', 'error');
-                return;
-            }
-            if (newPw !== confPw) {
-                showMsg(3, 'Passwords do not match.', 'error');
-                return;
-            }
-            if (newPw.length < 6) {
-                showMsg(3, 'Password must be at least 6 characters.', 'error');
-                return;
-            }
-
-            const btn = document.querySelector('#step3 .btn');
-            btn.disabled = true;
-            btn.textContent = 'Resetting…';
-
-            const res = await fetch('forgot_password.php?action=reset', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: resetToken, new_password: newPw }),
-            }).then(r => r.json()).catch(() => null);
-
-            btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-check"></i> Reset Password';
-
-            if (!res || !res.success) {
-                showMsg(3, res?.error || 'Reset failed. Try again.', 'error');
-                return;
-            }
-            goStep(4);
-        }
-    </script>
-
-    <!-- PWA Registration -->
-    <script src="pwa.js"></script>
+        if (!res || !res.success) { showMsg(3, res?.error || 'Reset failed. Try again.', 'error'); return; }
+        goStep(4);
+    }
+</script>
+<script src="pwa.js"></script>
 </body>
-
-</html><?php } // end HTML page ?>
+</html>
+<?php } ?>
