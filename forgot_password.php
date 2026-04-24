@@ -209,18 +209,18 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
     <div class="card">
         <div class="logo"><i class="fa-solid fa-lock"></i></div>
 
-        <!-- Step 1: Enter email -->
+        <!-- Step 1: Enter phone number -->
         <div class="step active" id="step1">
             <h2>Forgot Password?</h2>
-            <p class="sub">Enter your registered email address and we'll send an SMS reset code to your saved phone number.</p>
+            <p class="sub">Enter your registered mobile number and we'll send an SMS reset code to that number.</p>
             <div id="msg1"></div>
             <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" id="email-input" placeholder="your@email.com">
+                <label>Mobile Number</label>
+                <input type="tel" id="phone-input" placeholder="09171234567" maxlength="11">
             </div>
             <button class="btn" onclick="sendCode()">
-            <i class="fa-solid fa-paper-plane"></i> Send Reset Code
-        </button>
+                <i class="fa-solid fa-paper-plane"></i> Send Reset Code
+            </button>
             <div class="back-link">Remember your password? <a href="login.php">Sign In</a></div>
         </div>
 
@@ -233,12 +233,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
                 <i class="fa-solid fa-circle-info"></i> The code expires in <strong>10 minutes</strong>. Check your SMS inbox.
             </div>
             <div class="code-inputs">
-                <input type="text" maxlength="1" class="code-digit" id="d1" oninput="nextDigit(this,'d2')" onkeydown="prevDigit(event,'')">
-                <input type="text" maxlength="1" class="code-digit" id="d2" oninput="nextDigit(this,'d3')" onkeydown="prevDigit(event,'d1')">
-                <input type="text" maxlength="1" class="code-digit" id="d3" oninput="nextDigit(this,'d4')" onkeydown="prevDigit(event,'d2')">
-                <input type="text" maxlength="1" class="code-digit" id="d4" oninput="nextDigit(this,'d5')" onkeydown="prevDigit(event,'d3')">
-                <input type="text" maxlength="1" class="code-digit" id="d5" oninput="nextDigit(this,'d6')" onkeydown="prevDigit(event,'d4')">
-                <input type="text" maxlength="1" class="code-digit" id="d6" oninput="nextDigit(this,'')" onkeydown="prevDigit(event,'d5')">
+                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d1" oninput="nextDigit(this,'d2')" onkeydown="prevDigit(event,'')">
+                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d2" oninput="nextDigit(this,'d3')" onkeydown="prevDigit(event,'d1')">
+                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d3" oninput="nextDigit(this,'d4')" onkeydown="prevDigit(event,'d2')">
+                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d4" oninput="nextDigit(this,'d5')" onkeydown="prevDigit(event,'d3')">
+                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d5" oninput="nextDigit(this,'d6')" onkeydown="prevDigit(event,'d4')">
+                <input type="text" inputmode="numeric" maxlength="1" class="code-digit" id="d6" oninput="nextDigit(this,'')" onkeydown="prevDigit(event,'d5')">
             </div>
             <button class="btn" onclick="verifyCode()">Verify Code</button>
             <div class="back-link" style="margin-top:14px;">
@@ -261,8 +261,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
                 <input type="password" id="confirm-pw" placeholder="Repeat new password">
             </div>
             <button class="btn" onclick="resetPassword()">
-            <i class="fa-solid fa-check"></i> Reset Password
-        </button>
+                <i class="fa-solid fa-check"></i> Reset Password
+            </button>
         </div>
 
         <!-- Step 4: Done -->
@@ -271,14 +271,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
             <h2>Password Reset!</h2>
             <p class="sub">Your password has been changed successfully. You can now log in with your new password.</p>
             <a href="login.php" class="btn" style="display:block;text-decoration:none;margin-top:10px;">
-            Go to Login
-        </a>
+                Go to Login
+            </a>
         </div>
     </div>
 
-    <script src="js/api.js"></script>
     <script>
-        let resetEmail = '';
+        let resetPhone = '';
         let resetToken = '';
 
         function goStep(n) {
@@ -292,9 +291,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
         }
 
         async function sendCode(isResend = false) {
-            const email = document.getElementById('email-input').value.trim();
-            if (!email) {
-                showMsg(1, 'Please enter your email address.', 'error');
+            const phone = document.getElementById('phone-input').value.trim();
+            if (!phone) {
+                showMsg(1, 'Please enter your mobile number.', 'error');
+                return;
+            }
+            if (!/^09\d{9}$/.test(phone)) {
+                showMsg(1, 'Enter a valid PH mobile number starting with 09 (e.g. 09171234567).', 'error');
                 return;
             }
 
@@ -304,23 +307,19 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
 
             const res = await fetch('forgot_password.php?action=send', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    email
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone }),
             }).then(r => r.json()).catch(() => null);
 
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Reset Code';
 
             if (!res || !res.success) {
-                showMsg(1, res ? .error || 'Failed to send code. Check your email.', 'error');
+                showMsg(1, res?.error || 'Failed to send code. Check your number and try again.', 'error');
                 return;
             }
 
-            resetEmail = email;
+            resetPhone = phone;
             document.getElementById('step2-sub').textContent =
                 `A 6-digit code was sent to ${res.phone_hint}.`;
 
@@ -329,6 +328,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
         }
 
         function nextDigit(el, nextId) {
+            // Only allow digits
+            el.value = el.value.replace(/\D/, '');
             if (el.value && nextId) document.getElementById(nextId).focus();
         }
 
@@ -349,20 +350,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
 
             const res = await fetch('forgot_password.php?action=verify', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    email: resetEmail,
-                    code
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ phone: resetPhone, code }),
             }).then(r => r.json()).catch(() => null);
 
             btn.disabled = false;
             btn.textContent = 'Verify Code';
 
             if (!res || !res.success) {
-                showMsg(2, res ? .error || 'Invalid or expired code.', 'error');
+                showMsg(2, res?.error || 'Invalid or expired code.', 'error');
                 return;
             }
 
@@ -392,20 +388,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
 
             const res = await fetch('forgot_password.php?action=reset', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    token: resetToken,
-                    new_password: newPw
-                }),
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token: resetToken, new_password: newPw }),
             }).then(r => r.json()).catch(() => null);
 
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-check"></i> Reset Password';
 
             if (!res || !res.success) {
-                showMsg(3, res ? .error || 'Reset failed. Try again.', 'error');
+                showMsg(3, res?.error || 'Reset failed. Try again.', 'error');
                 return;
             }
             goStep(4);
@@ -413,13 +404,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
     </script>
 
     <!-- PWA Registration -->
-    <script src="js/pwa.js"></script>
+    <script src="pwa.js"></script>
 </body>
 
 </html><?php } // end HTML block
 
 // ============================================================
-//  api/forgot_password.php
+//  API — POST handlers
 //
 //  POST ?action=send    → generate code, send SMS via Semaphore
 //  POST ?action=verify  → check code, return one-time token
@@ -442,37 +433,31 @@ $action = $_GET['action'] ?? '';
 $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 
 // ────────────────────────────────────────────────────────────
-// STEP 1 — SEND CODE
+// STEP 1 — SEND CODE (lookup by phone number)
 // ────────────────────────────────────────────────────────────
 if ($action === 'send') {
-    $email = trim($body['email'] ?? '');
-    if (!$email) respond(['success' => false, 'error' => 'Email is required.'], 400);
+    $phone = trim($body['phone'] ?? '');
+    if (!$phone) respond(['success' => false, 'error' => 'Mobile number is required.'], 400);
 
-    // Find the user
-    $stmt = $pdo->prepare("SELECT id, first_name, phone FROM users WHERE email = ? LIMIT 1");
-    $stmt->execute([$email]);
+    // Normalize: ensure it starts with 09 and is 11 digits
+    if (!preg_match('/^09\d{9}$/', $phone)) {
+        respond(['success' => false, 'error' => 'Enter a valid PH mobile number starting with 09.'], 400);
+    }
+
+    // Find the user by phone number
+    $stmt = $pdo->prepare("SELECT id, first_name, phone FROM users WHERE phone = ? LIMIT 1");
+    $stmt->execute([$phone]);
     $user = $stmt->fetch();
 
     if (!$user) {
-        // Don't reveal whether email exists — generic message
-        respond(['success' => false, 'error' => 'No account found with that email address.'], 404);
-    }
-
-    // Check phone — stored in users.phone or in reset_tokens table
-    $phone = $user['phone'] ?? null;
-
-    if (!$phone) {
-        respond([
-            'success' => false,
-            'error'   => 'No mobile number saved for this account. Please contact your administrator.',
-        ], 400);
+        respond(['success' => false, 'error' => 'No account found with that mobile number.'], 404);
     }
 
     // Generate 6-digit code
     $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
     $expires = date('Y-m-d H:i:s', time() + 600); // 10 minutes
 
-    // Store code in DB (create table if not exists)
+    // Ensure the password_resets table exists
     $pdo->exec(
         "CREATE TABLE IF NOT EXISTS password_resets (
             id         INT AUTO_INCREMENT PRIMARY KEY,
@@ -502,8 +487,7 @@ if ($action === 'send') {
     if ($smsSent) {
         respond(['success' => true, 'phone_hint' => $phoneMasked]);
     } else {
-        // SMS failed — still return success so admin can check logs
-        // In development, log the code to PHP error log
+        // SMS failed — log for debugging, still return masked hint
         error_log("FORGOT PASSWORD: code={$code} for user_id={$user['id']} phone={$phone}");
         respond([
             'success'    => true,
@@ -514,16 +498,16 @@ if ($action === 'send') {
 }
 
 // ────────────────────────────────────────────────────────────
-// STEP 2 — VERIFY CODE
+// STEP 2 — VERIFY CODE (lookup by phone)
 // ────────────────────────────────────────────────────────────
 if ($action === 'verify') {
-    $email = trim($body['email'] ?? '');
+    $phone = trim($body['phone'] ?? '');
     $code  = trim($body['code']  ?? '');
 
-    if (!$email || !$code) respond(['success' => false, 'error' => 'Email and code are required.'], 400);
+    if (!$phone || !$code) respond(['success' => false, 'error' => 'Phone and code are required.'], 400);
 
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-    $stmt->execute([$email]);
+    $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ? LIMIT 1");
+    $stmt->execute([$phone]);
     $user = $stmt->fetch();
     if (!$user) respond(['success' => false, 'error' => 'Invalid request.'], 400);
 
@@ -614,4 +598,13 @@ function sendSMS(string $number, string $message): bool {
 
     error_log("Semaphore SMS response [{$httpCode}]: " . $response);
     return $httpCode === 200;
+}
+
+// ────────────────────────────────────────────────────────────
+// HELPER — JSON response
+// ────────────────────────────────────────────────────────────
+function respond(array $data, int $code = 200): never {
+    http_response_code($code);
+    echo json_encode($data);
+    exit;
 }
