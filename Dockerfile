@@ -3,11 +3,17 @@ FROM php:8.2-apache
 # Enable Apache modules required for PWA
 RUN a2enmod rewrite headers
 
-# Install PHP extensions
+# Install PHP extensions + Composer + PHPMailer
+RUN apt-get update && apt-get install -y unzip curl git --no-install-recommends && rm -rf /var/lib/apt/lists/*
 RUN docker-php-ext-install pdo pdo_mysql
+RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer
 
 # Copy all project files (including hidden files like .htaccess)
 COPY . /var/www/html/
+
+# Install PHPMailer via Composer
+WORKDIR /var/www/html
+RUN composer require phpmailer/phpmailer --no-interaction --quiet
 
 # Copy Apache config
 COPY apache.conf /etc/apache2/sites-enabled/000-default.conf
