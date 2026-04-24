@@ -36,10 +36,15 @@ if ($isApiRequest) {
 
     // Temp debug — remove after email works
     if ($action === 'debug') {
+        $vendorExists = file_exists(__DIR__ . '/vendor/autoload.php');
+        $phpmailerExists = file_exists(__DIR__ . '/vendor/phpmailer/phpmailer/src/PHPMailer.php');
         respond([
-            'GMAIL_USER' => $GMAIL_USER ?: 'NOT SET',
-            'GMAIL_PASS' => $GMAIL_PASS ? 'SET (' . strlen($GMAIL_PASS) . ' chars)' : 'NOT SET',
-            'env_keys'   => array_keys($_ENV),
+            'GMAIL_USER'       => $GMAIL_USER ?: 'NOT SET',
+            'GMAIL_PASS'       => $GMAIL_PASS ? 'SET (' . strlen($GMAIL_PASS) . ' chars)' : 'NOT SET',
+            'vendor_exists'    => $vendorExists,
+            'phpmailer_exists' => $phpmailerExists,
+            'php_version'      => PHP_VERSION,
+            '__DIR__'          => __DIR__,
         ]);
     }
 
