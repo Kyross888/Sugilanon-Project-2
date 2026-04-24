@@ -27,11 +27,21 @@ if ($isApiRequest) {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type');
 
-    $GMAIL_USER = getenv('GMAIL_USER') ?: '';
-    $GMAIL_PASS = getenv('GMAIL_PASS') ?: '';
+    // Railway: try all possible env variable sources
+    $GMAIL_USER = $_ENV['GMAIL_USER'] ?? $_SERVER['GMAIL_USER'] ?? getenv('GMAIL_USER') ?: '';
+    $GMAIL_PASS = $_ENV['GMAIL_PASS'] ?? $_SERVER['GMAIL_PASS'] ?? getenv('GMAIL_PASS') ?: '';
 
     $action = $_GET['action'] ?? '';
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    // Temp debug — remove after email works
+    if ($action === 'debug') {
+        respond([
+            'GMAIL_USER' => $GMAIL_USER ?: 'NOT SET',
+            'GMAIL_PASS' => $GMAIL_PASS ? 'SET (' . strlen($GMAIL_PASS) . ' chars)' : 'NOT SET',
+            'env_keys'   => array_keys($_ENV),
+        ]);
+    }
 
     // ── SEND CODE ──────────────────────────────────────────
     if ($action === 'send') {
