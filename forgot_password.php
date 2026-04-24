@@ -21,7 +21,7 @@ if ($isApiRequest) {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type');
 
-    if (!defined('SMS_API_KEY')) define('SMS_API_KEY', 'YOUR_SEMAPHORE_API_KEY_HERE');
+    if (!defined('SMS_API_KEY')) define('SMS_API_KEY', 'a1af70a90542b92981c19aca3cd2c0e3');
     if (!defined('SMS_SENDER'))  define('SMS_SENDER',  'LunasPOS');
 
     $action = $_GET['action'] ?? '';
