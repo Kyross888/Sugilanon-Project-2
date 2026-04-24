@@ -208,7 +208,7 @@
         </form>
 
         <div class="footer-link">
-            Forgot password? <a href="forgot_password.php">Reset via SMS</a><br style="margin:6px 0;display:block;"><span>Don't have an account? <a href="register.php">Create Account</a></span>
+            Forgot password? <a href="forgot_password.php">Reset Password</a><br style="margin:6px 0;display:block;"><span>Don't have an account? <a href="register.php">Create Account</a></span>
         </div>
     </div><script src="js/api.js"></script>
     <script>
