@@ -93,16 +93,19 @@ if ($isApiRequest) {
             respond(['success' => true, 'email_hint' => $emailMasked, 'dev_code' => $code]);
         }
 
-        // Send email via Gmail SMTP (port 587 STARTTLS)
-        $sent = sendResetEmail($user['email'], $user['first_name'], $code, $GMAIL_USER, $GMAIL_PASS);
+        // Always respond success immediately (code is saved in DB)
+        // Email is best-effort — user can still use on-screen code if it fails
+        $responseData = ['success' => true, 'email_hint' => $emailMasked];
 
+        // Send email (10s timeout set inside sendResetEmail)
+        $sent = sendResetEmail($user['email'], $user['first_name'], $code, $GMAIL_USER, $GMAIL_PASS);
         if (!$sent) {
-            error_log("EMAIL FAILED: code={$code} for user_id={$user['id']} email={$user['email']}");
-            // Still return code so user is not stuck
-            respond(['success' => true, 'email_hint' => $emailMasked, 'email_failed' => true, 'dev_code' => $code]);
+            error_log("EMAIL FAILED: code={$code} user={$user['id']} email={$user['email']}");
+            $responseData['dev_code'] = $code; // show on screen as fallback
+            $responseData['email_failed'] = true;
         }
 
-        respond(['success' => true, 'email_hint' => $emailMasked]);
+        respond($responseData);
     }
 
     // ── VERIFY CODE ────────────────────────────────────────
@@ -177,6 +180,14 @@ function sendResetEmail(string $to, string $name, string $code, string $gmailUse
         $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
         $mail->Port       = 587;
         $mail->SMTPDebug  = 0;
+        $mail->Timeout    = 10;
+        $mail->SMTPOptions = [
+            'ssl' => [
+                'verify_peer'       => false,
+                'verify_peer_name'  => false,
+                'allow_self_signed' => true,
+            ],
+        ];
 
         $mail->setFrom($gmailUser, "Luna's POS");
         $mail->addAddress($to, $name);
@@ -348,11 +359,16 @@ if (!$isApiRequest) {
         btn.disabled = true;
         btn.textContent = 'Sending…';
 
+        // 15 second timeout so button never stays stuck
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), 15000);
         const res = await fetch('forgot_password.php?action=send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ phone }),
+            signal: controller.signal,
         }).then(r => r.json()).catch(() => null);
+        clearTimeout(timer);
 
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-envelope"></i> Send Reset Code';
