@@ -54,9 +54,25 @@ switch ($action) {
         $role        = trim($body['role']        ?? 'staff');
         $branch      = trim($body['branch']      ?? '');
         $employee_id = trim($body['employee_id'] ?? '');
+        $phone       = trim($body['phone']       ?? '');
 
         if (!$first_name || !$last_name || !$email || !$password) {
             respond(['success' => false, 'error' => 'All fields are required.'], 400);
+        }
+
+        // Validate phone — required for SMS password reset
+        if (!$phone) {
+            respond(['success' => false, 'error' => 'Mobile number is required for SMS password reset.'], 400);
+        }
+        if (!preg_match('/^09\d{9}$/', $phone)) {
+            respond(['success' => false, 'error' => 'Enter a valid PH mobile number starting with 09 (e.g. 09171234567).'], 400);
+        }
+
+        // Check duplicate phone
+        $checkPhone = $pdo->prepare("SELECT id FROM users WHERE phone = ?");
+        $checkPhone->execute([$phone]);
+        if ($checkPhone->fetch()) {
+            respond(['success' => false, 'error' => 'That mobile number is already registered to another account.'], 409);
         }
 
         // Check duplicate email
@@ -96,10 +112,10 @@ switch ($action) {
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
         $ins  = $pdo->prepare(
-            "INSERT INTO users (first_name, last_name, email, password, role, employee_id, branch_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO users (first_name, last_name, email, password, role, employee_id, phone, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
         );
-        $ins->execute([$first_name, $last_name, $email, $hash, $role, $employee_id, $branch_id]);
+        $ins->execute([$first_name, $last_name, $email, $hash, $role, $employee_id, $phone, $branch_id]);
 
         respond(['success' => true, 'message' => 'Account created successfully.']);
         break;
