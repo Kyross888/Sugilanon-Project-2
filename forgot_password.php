@@ -4,7 +4,152 @@
 //  GET              → HTML page
 //  POST ?action=xxx → JSON API response
 // ============================================================
-if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
+ob_start(); // Buffer output so headers can still be sent
+
+// Handle API requests FIRST — before any HTML is output
+$isApiRequest = ($_SERVER['REQUEST_METHOD'] === 'POST') || isset($_GET['action']);
+
+if ($isApiRequest) {
+    ob_end_clean(); // Discard any accidental output
+    header('Content-Type: application/json');
+    header('Access-Control-Allow-Origin: *');
+    header('Access-Control-Allow-Headers: Content-Type');
+
+    require_once 'db.php';
+
+    define('SMS_API_KEY',  'YOUR_SEMAPHORE_API_KEY_HERE');
+    define('SMS_SENDER',   'LunasPOS');
+
+    $action = $_GET['action'] ?? '';
+    $body   = json_decode(file_get_contents('php://input'), true) ?? [];
+
+    // ── SEND CODE ──────────────────────────────────────────
+    if ($action === 'send') {
+        $phone = trim($body['phone'] ?? '');
+        if (!$phone) respond(['success' => false, 'error' => 'Mobile number is required.'], 400);
+        if (!preg_match('/^09\d{9}$/', $phone)) {
+            respond(['success' => false, 'error' => 'Enter a valid PH mobile number starting with 09.'], 400);
+        }
+
+        $stmt = $pdo->prepare("SELECT id, first_name, phone FROM users WHERE phone = ? LIMIT 1");
+        $stmt->execute([$phone]);
+        $user = $stmt->fetch();
+        if (!$user) respond(['success' => false, 'error' => 'No account found with that mobile number.'], 404);
+
+        $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+        $expires = date('Y-m-d H:i:s', time() + 600);
+
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS password_resets (
+                id         INT AUTO_INCREMENT PRIMARY KEY,
+                user_id    INT NOT NULL,
+                code       VARCHAR(6) NOT NULL,
+                token      VARCHAR(64),
+                expires_at DATETIME NOT NULL,
+                used       TINYINT(1) DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )"
+        );
+
+        $pdo->prepare("DELETE FROM password_resets WHERE user_id = ?")->execute([$user['id']]);
+        $pdo->prepare("INSERT INTO password_resets (user_id, code, expires_at) VALUES (?, ?, ?)")
+            ->execute([$user['id'], $code, $expires]);
+
+        $smsSent = sendSMS($phone, "Luna's POS: Your password reset code is {$code}. Valid for 10 minutes. Do not share this code.");
+        $phoneMasked = substr($phone, 0, 4) . '***' . substr($phone, -4);
+
+        if (!$smsSent) {
+            error_log("FORGOT PASSWORD: code={$code} for user_id={$user['id']} phone={$phone}");
+        }
+
+        respond(['success' => true, 'phone_hint' => $phoneMasked]);
+    }
+
+    // ── VERIFY CODE ────────────────────────────────────────
+    if ($action === 'verify') {
+        $phone = trim($body['phone'] ?? '');
+        $code  = trim($body['code']  ?? '');
+        if (!$phone || !$code) respond(['success' => false, 'error' => 'Phone and code are required.'], 400);
+
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ? LIMIT 1");
+        $stmt->execute([$phone]);
+        $user = $stmt->fetch();
+        if (!$user) respond(['success' => false, 'error' => 'Invalid request.'], 400);
+
+        $stmt = $pdo->prepare(
+            "SELECT id FROM password_resets
+             WHERE user_id = ? AND code = ? AND used = 0 AND expires_at > NOW() LIMIT 1"
+        );
+        $stmt->execute([$user['id'], $code]);
+        $reset = $stmt->fetch();
+        if (!$reset) respond(['success' => false, 'error' => 'Invalid or expired code. Please request a new one.'], 400);
+
+        $token = bin2hex(random_bytes(32));
+        $pdo->prepare("UPDATE password_resets SET token = ? WHERE id = ?")->execute([$token, $reset['id']]);
+        respond(['success' => true, 'token' => $token]);
+    }
+
+    // ── RESET PASSWORD ─────────────────────────────────────
+    if ($action === 'reset') {
+        $token = trim($body['token']        ?? '');
+        $newPw = trim($body['new_password'] ?? '');
+        if (!$token || !$newPw) respond(['success' => false, 'error' => 'Token and new password required.'], 400);
+        if (strlen($newPw) < 6) respond(['success' => false, 'error' => 'Password must be at least 6 characters.'], 400);
+
+        $stmt = $pdo->prepare(
+            "SELECT user_id FROM password_resets
+             WHERE token = ? AND used = 0 AND expires_at > NOW() LIMIT 1"
+        );
+        $stmt->execute([$token]);
+        $reset = $stmt->fetch();
+        if (!$reset) respond(['success' => false, 'error' => 'Invalid or expired token. Please restart the reset process.'], 400);
+
+        $hash = password_hash($newPw, PASSWORD_BCRYPT);
+        $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $reset['user_id']]);
+        $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token = ?")->execute([$token]);
+        respond(['success' => true, 'message' => 'Password reset successfully.']);
+    }
+
+    respond(['success' => false, 'error' => 'Unknown action.'], 400);
+}
+
+// ── HELPER: Send SMS via Semaphore ─────────────────────────
+function sendSMS(string $number, string $message): bool {
+    if (SMS_API_KEY === 'YOUR_SEMAPHORE_API_KEY_HERE') {
+        error_log("SMS not configured. Set SMS_API_KEY in forgot_password.php");
+        return false;
+    }
+    $number = preg_replace('/\D/', '', $number);
+    if (str_starts_with($number, '0')) $number = '63' . substr($number, 1);
+
+    $ch = curl_init('https://api.semaphore.co/api/v4/messages');
+    curl_setopt_array($ch, [
+        CURLOPT_POST           => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POSTFIELDS     => http_build_query([
+            'apikey'     => SMS_API_KEY,
+            'number'     => $number,
+            'message'    => $message,
+            'sendername' => SMS_SENDER,
+        ]),
+        CURLOPT_TIMEOUT => 15,
+    ]);
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+    error_log("Semaphore SMS response [{$httpCode}]: " . $response);
+    return $httpCode === 200;
+}
+
+// ── HELPER: JSON respond & exit ────────────────────────────
+function respond(array $data, int $code = 200): never {
+    http_response_code($code);
+    echo json_encode($data);
+    exit;
+}
+
+// ── HTML PAGE (GET requests only) ──────────────────────────
+if (!$isApiRequest) {
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -407,204 +552,4 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['action'])) {
     <script src="pwa.js"></script>
 </body>
 
-</html><?php } // end HTML block
-
-// ============================================================
-//  API — POST handlers
-//
-//  POST ?action=send    → generate code, send SMS via Semaphore
-//  POST ?action=verify  → check code, return one-time token
-//  POST ?action=reset   → use token to set new password
-//
-//  SMS Provider: Semaphore (https://semaphore.co) — free PH SMS API
-//  Sign up at semaphore.co, get your API key, paste it below.
-// ============================================================
-header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Content-Type');
-
-require_once 'db.php';
-
-// ── CONFIG — paste your Semaphore API key here ────────────
-define('SMS_API_KEY',  'YOUR_SEMAPHORE_API_KEY_HERE');
-define('SMS_SENDER',   'LunasPOS');   // Your approved sender name (max 11 chars)
-
-$action = $_GET['action'] ?? '';
-$body   = json_decode(file_get_contents('php://input'), true) ?? [];
-
-// ────────────────────────────────────────────────────────────
-// STEP 1 — SEND CODE (lookup by phone number)
-// ────────────────────────────────────────────────────────────
-if ($action === 'send') {
-    $phone = trim($body['phone'] ?? '');
-    if (!$phone) respond(['success' => false, 'error' => 'Mobile number is required.'], 400);
-
-    // Normalize: ensure it starts with 09 and is 11 digits
-    if (!preg_match('/^09\d{9}$/', $phone)) {
-        respond(['success' => false, 'error' => 'Enter a valid PH mobile number starting with 09.'], 400);
-    }
-
-    // Find the user by phone number
-    $stmt = $pdo->prepare("SELECT id, first_name, phone FROM users WHERE phone = ? LIMIT 1");
-    $stmt->execute([$phone]);
-    $user = $stmt->fetch();
-
-    if (!$user) {
-        respond(['success' => false, 'error' => 'No account found with that mobile number.'], 404);
-    }
-
-    // Generate 6-digit code
-    $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-    $expires = date('Y-m-d H:i:s', time() + 600); // 10 minutes
-
-    // Ensure the password_resets table exists
-    $pdo->exec(
-        "CREATE TABLE IF NOT EXISTS password_resets (
-            id         INT AUTO_INCREMENT PRIMARY KEY,
-            user_id    INT NOT NULL,
-            code       VARCHAR(6) NOT NULL,
-            token      VARCHAR(64),
-            expires_at DATETIME NOT NULL,
-            used       TINYINT(1) DEFAULT 0,
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )"
-    );
-
-    // Delete any old codes for this user
-    $pdo->prepare("DELETE FROM password_resets WHERE user_id = ?")->execute([$user['id']]);
-
-    // Insert new code
-    $pdo->prepare(
-        "INSERT INTO password_resets (user_id, code, expires_at) VALUES (?, ?, ?)"
-    )->execute([$user['id'], $code, $expires]);
-
-    // Send SMS via Semaphore
-    $smsSent = sendSMS($phone, "Luna's POS: Your password reset code is {$code}. Valid for 10 minutes. Do not share this code.");
-
-    // Mask phone for display: 09171234567 → 0917***4567
-    $phoneMasked = substr($phone, 0, 4) . '***' . substr($phone, -4);
-
-    if ($smsSent) {
-        respond(['success' => true, 'phone_hint' => $phoneMasked]);
-    } else {
-        // SMS failed — log for debugging, still return masked hint
-        error_log("FORGOT PASSWORD: code={$code} for user_id={$user['id']} phone={$phone}");
-        respond([
-            'success'    => true,
-            'phone_hint' => $phoneMasked,
-            'dev_note'   => 'SMS sending failed. Check SMS_API_KEY in forgot_password.php.',
-        ]);
-    }
-}
-
-// ────────────────────────────────────────────────────────────
-// STEP 2 — VERIFY CODE (lookup by phone)
-// ────────────────────────────────────────────────────────────
-if ($action === 'verify') {
-    $phone = trim($body['phone'] ?? '');
-    $code  = trim($body['code']  ?? '');
-
-    if (!$phone || !$code) respond(['success' => false, 'error' => 'Phone and code are required.'], 400);
-
-    $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ? LIMIT 1");
-    $stmt->execute([$phone]);
-    $user = $stmt->fetch();
-    if (!$user) respond(['success' => false, 'error' => 'Invalid request.'], 400);
-
-    $stmt = $pdo->prepare(
-        "SELECT id FROM password_resets
-         WHERE user_id = ? AND code = ? AND used = 0 AND expires_at > NOW()
-         LIMIT 1"
-    );
-    $stmt->execute([$user['id'], $code]);
-    $reset = $stmt->fetch();
-
-    if (!$reset) {
-        respond(['success' => false, 'error' => 'Invalid or expired code. Please request a new one.'], 400);
-    }
-
-    // Generate a one-time token for the reset step
-    $token = bin2hex(random_bytes(32));
-    $pdo->prepare("UPDATE password_resets SET token = ? WHERE id = ?")->execute([$token, $reset['id']]);
-
-    respond(['success' => true, 'token' => $token]);
-}
-
-// ────────────────────────────────────────────────────────────
-// STEP 3 — RESET PASSWORD
-// ────────────────────────────────────────────────────────────
-if ($action === 'reset') {
-    $token  = trim($body['token']        ?? '');
-    $newPw  = trim($body['new_password'] ?? '');
-
-    if (!$token || !$newPw) respond(['success' => false, 'error' => 'Token and new password required.'], 400);
-    if (strlen($newPw) < 6) respond(['success' => false, 'error' => 'Password must be at least 6 characters.'], 400);
-
-    $stmt = $pdo->prepare(
-        "SELECT user_id FROM password_resets
-         WHERE token = ? AND used = 0 AND expires_at > NOW()
-         LIMIT 1"
-    );
-    $stmt->execute([$token]);
-    $reset = $stmt->fetch();
-
-    if (!$reset) {
-        respond(['success' => false, 'error' => 'Invalid or expired token. Please restart the reset process.'], 400);
-    }
-
-    // Update password
-    $hash = password_hash($newPw, PASSWORD_BCRYPT);
-    $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $reset['user_id']]);
-
-    // Mark token as used
-    $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token = ?")->execute([$token]);
-
-    respond(['success' => true, 'message' => 'Password reset successfully.']);
-}
-
-respond(['success' => false, 'error' => 'Unknown action.'], 400);
-
-// ────────────────────────────────────────────────────────────
-// HELPER — Send SMS via Semaphore
-// ────────────────────────────────────────────────────────────
-function sendSMS(string $number, string $message): bool {
-    if (SMS_API_KEY === 'YOUR_SEMAPHORE_API_KEY_HERE') {
-        error_log("SMS not configured. Set SMS_API_KEY in forgot_password.php");
-        return false;
-    }
-
-    // Normalize number: 09171234567 → 639171234567
-    $number = preg_replace('/\D/', '', $number);
-    if (str_starts_with($number, '0')) {
-        $number = '63' . substr($number, 1);
-    }
-
-    $ch = curl_init('https://api.semaphore.co/api/v4/messages');
-    curl_setopt_array($ch, [
-        CURLOPT_POST           => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POSTFIELDS     => http_build_query([
-            'apikey'      => SMS_API_KEY,
-            'number'      => $number,
-            'message'     => $message,
-            'sendername'  => SMS_SENDER,
-        ]),
-        CURLOPT_TIMEOUT => 15,
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    error_log("Semaphore SMS response [{$httpCode}]: " . $response);
-    return $httpCode === 200;
-}
-
-// ────────────────────────────────────────────────────────────
-// HELPER — JSON response
-// ────────────────────────────────────────────────────────────
-function respond(array $data, int $code = 200): never {
-    http_response_code($code);
-    echo json_encode($data);
-    exit;
-}
+</html><?php } // end HTML page ?>
