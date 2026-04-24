@@ -157,123 +157,57 @@ if ($isApiRequest) {
     respond(['success' => false, 'error' => 'Unknown action.'], 400);
 }
 
-// ── HELPER: Send email via Gmail SMTP (no library needed) ──
+// ── HELPER: Send email via PHPMailer ──────────────────────
 function sendResetEmail(string $to, string $name, string $code, string $gmailUser, string $gmailPass): bool {
-    $subject = "Your Password Reset Code - Luna's POS";
-    $message = "
-    <html><body style='font-family:sans-serif;background:#f8fafc;padding:20px'>
-    <div style='max-width:480px;margin:0 auto;background:white;border-radius:16px;padding:32px;box-shadow:0 4px 12px rgba(0,0,0,0.08)'>
-        <div style='text-align:center;margin-bottom:24px'>
-            <div style='background:#eef2ff;border-radius:16px;width:64px;height:64px;display:inline-flex;align-items:center;justify-content:center;font-size:32px'>🔐</div>
-        </div>
-        <h2 style='color:#1e293b;text-align:center;margin:0 0 8px'>Password Reset Code</h2>
-        <p style='color:#64748b;text-align:center;margin:0 0 28px'>Hi {$name}, use the code below to reset your password.</p>
-        <div style='background:#eef2ff;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px'>
-            <div style='font-size:40px;font-weight:800;letter-spacing:12px;color:#4f46e5'>{$code}</div>
-        </div>
-        <p style='color:#94a3b8;font-size:13px;text-align:center'>This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
-        <hr style='border:none;border-top:1px solid #e2e8f0;margin:24px 0'>
-        <p style='color:#94a3b8;font-size:12px;text-align:center'>If you did not request a password reset, you can safely ignore this email.</p>
-    </div>
-    </body></html>";
+    // Load PHPMailer (installed via Composer in Dockerfile)
+    $autoload = __DIR__ . '/vendor/autoload.php';
+    if (!file_exists($autoload)) {
+        error_log("PHPMailer not found at {$autoload}");
+        return false;
+    }
+    require_once $autoload;
 
-    // Use PHP's mail() with SMTP — works on most hosts
-    // For Railway, we use socket-based SMTP directly
-    return sendSmtp($to, $subject, $message, $gmailUser, $gmailPass);
-}
-
-function sendSmtp(string $to, string $subject, string $htmlBody, string $user, string $pass): bool {
+    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
     try {
-        // Use port 587 with STARTTLS (Railway allows this, blocks 465)
-        $socket = fsockopen('tcp://smtp.gmail.com', 587, $errno, $errstr, 15);
-        if (!$socket) {
-            error_log("SMTP fsockopen failed: {$errno} {$errstr}");
-            return false;
-        }
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = $gmailUser;
+        $mail->Password   = $gmailPass;
+        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
+        $mail->Port       = 587;
+        $mail->SMTPDebug  = 0;
 
-        stream_set_timeout($socket, 15);
+        $mail->setFrom($gmailUser, "Luna's POS");
+        $mail->addAddress($to, $name);
+        $mail->isHTML(true);
+        $mail->Subject = "Your Password Reset Code - Luna's POS";
+        $mail->Body    = "
+        <html><body style='font-family:sans-serif;background:#f8fafc;padding:20px'>
+        <div style='max-width:480px;margin:0 auto;background:white;border-radius:16px;padding:32px;box-shadow:0 4px 12px rgba(0,0,0,0.08)'>
+            <div style='text-align:center;margin-bottom:24px'>
+                <div style='background:#eef2ff;border-radius:16px;width:64px;height:64px;display:inline-flex;align-items:center;justify-content:center;font-size:32px'>🔐</div>
+            </div>
+            <h2 style='color:#1e293b;text-align:center;margin:0 0 8px'>Password Reset Code</h2>
+            <p style='color:#64748b;text-align:center;margin:0 0 28px'>Hi {$name}, use the code below to reset your password.</p>
+            <div style='background:#eef2ff;border-radius:12px;padding:24px;text-align:center;margin-bottom:24px'>
+                <div style='font-size:40px;font-weight:800;letter-spacing:12px;color:#4f46e5'>{$code}</div>
+            </div>
+            <p style='color:#94a3b8;font-size:13px;text-align:center'>This code expires in <strong>10 minutes</strong>. Do not share it with anyone.</p>
+            <hr style='border:none;border-top:1px solid #e2e8f0;margin:24px 0'>
+            <p style='color:#94a3b8;font-size:12px;text-align:center'>If you did not request a password reset, ignore this email.</p>
+        </div>
+        </body></html>";
 
-        $read = fgets($socket, 512);
-        error_log("SMTP banner: {$read}");
-        if (strpos($read, '220') === false) { fclose($socket); return false; }
-
-        // EHLO
-        fwrite($socket, "EHLO railway.app\r\n");
-        $ehlo = '';
-        while ($line = fgets($socket, 512)) {
-            $ehlo .= $line;
-            if (substr($line, 3, 1) === ' ') break; // last line of EHLO
-        }
-        error_log("SMTP EHLO: {$ehlo}");
-
-        // STARTTLS
-        fwrite($socket, "STARTTLS\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP STARTTLS: {$resp}");
-        if (strpos($resp, '220') === false) { fclose($socket); return false; }
-
-        // Upgrade to TLS
-        stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
-
-        // EHLO again after TLS
-        fwrite($socket, "EHLO railway.app\r\n");
-        while ($line = fgets($socket, 512)) {
-            if (substr($line, 3, 1) === ' ') break;
-        }
-
-        // AUTH LOGIN
-        fwrite($socket, "AUTH LOGIN\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP AUTH: {$resp}");
-        if (strpos($resp, '334') === false) { fclose($socket); return false; }
-
-        fwrite($socket, base64_encode($user) . "\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP USER: {$resp}");
-        if (strpos($resp, '334') === false) { fclose($socket); return false; }
-
-        fwrite($socket, base64_encode($pass) . "\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP PASS: {$resp}");
-        if (strpos($resp, '235') === false) { fclose($socket); return false; }
-
-        // MAIL FROM
-        fwrite($socket, "MAIL FROM:<{$user}>\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP MAIL FROM: {$resp}");
-        if (strpos($resp, '250') === false) { fclose($socket); return false; }
-
-        // RCPT TO
-        fwrite($socket, "RCPT TO:<{$to}>\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP RCPT TO: {$resp}");
-        if (strpos($resp, '250') === false) { fclose($socket); return false; }
-
-        // DATA
-        fwrite($socket, "DATA\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP DATA: {$resp}");
-        if (strpos($resp, '354') === false) { fclose($socket); return false; }
-
-        // Send headers + body
-        $headers  = "From: Luna's POS <{$user}>\r\n";
-        $headers .= "To: {$to}\r\n";
-        $headers .= "Subject: {$subject}\r\n";
-        $headers .= "MIME-Version: 1.0\r\n";
-        $headers .= "Content-Type: text/html; charset=UTF-8\r\n";
-
-        fwrite($socket, $headers . "\r\n" . $htmlBody . "\r\n.\r\n");
-        $resp = fgets($socket, 512);
-        error_log("SMTP send result: {$resp}");
-        fwrite($socket, "QUIT\r\n");
-        fclose($socket);
-
-        return strpos($resp, '250') !== false;
-    } catch (\Throwable $e) {
-        error_log("SMTP exception: " . $e->getMessage());
+        $mail->send();
+        error_log("PHPMailer: email sent to {$to}");
+        return true;
+    } catch (\Exception $e) {
+        error_log("PHPMailer error: " . $mail->ErrorInfo);
         return false;
     }
 }
+
 
 // ── HTML PAGE ──────────────────────────────────────────────
 if (!$isApiRequest) {
