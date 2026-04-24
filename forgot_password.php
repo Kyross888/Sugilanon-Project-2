@@ -87,18 +87,18 @@ if ($isApiRequest) {
         [$emailLocal, $emailDomain] = explode('@', $user['email']);
         $emailMasked = substr($emailLocal, 0, 1) . '***@' . $emailDomain;
 
-        // Dev mode: Gmail not configured
         $devMode = ($GMAIL_USER === '' || $GMAIL_PASS === '');
         if ($devMode) {
             error_log("[DEV] Password reset code for {$user['email']}: {$code}");
             respond(['success' => true, 'email_hint' => $emailMasked, 'dev_code' => $code]);
         }
 
-        // Send email via Gmail SMTP
+        // Send email via Gmail SMTP (port 587 STARTTLS)
         $sent = sendResetEmail($user['email'], $user['first_name'], $code, $GMAIL_USER, $GMAIL_PASS);
 
         if (!$sent) {
             error_log("EMAIL FAILED: code={$code} for user_id={$user['id']} email={$user['email']}");
+            // Still return code so user is not stuck
             respond(['success' => true, 'email_hint' => $emailMasked, 'email_failed' => true, 'dev_code' => $code]);
         }
 
@@ -184,37 +184,78 @@ function sendResetEmail(string $to, string $name, string $code, string $gmailUse
 
 function sendSmtp(string $to, string $subject, string $htmlBody, string $user, string $pass): bool {
     try {
-        $socket = fsockopen('ssl://smtp.gmail.com', 465, $errno, $errstr, 15);
-        if (!$socket) return false;
-
-        $read = fgets($socket, 512);
-        if (strpos($read, '220') === false) { fclose($socket); return false; }
-
-        $cmds = [
-            "EHLO railway.app\r\n",
-            "AUTH LOGIN\r\n",
-            base64_encode($user) . "\r\n",
-            base64_encode($pass) . "\r\n",
-            "MAIL FROM:<{$user}>\r\n",
-            "RCPT TO:<{$to}>\r\n",
-            "DATA\r\n",
-        ];
-
-        foreach ($cmds as $cmd) {
-            fwrite($socket, $cmd);
-            $resp = fgets($socket, 512);
-            // AUTH LOGIN responses: 334 for prompts, 235 for success
-            // MAIL/RCPT: 250, DATA: 354
-            $code = (int)substr($resp, 0, 3);
-            if (!in_array($code, [220, 235, 250, 334, 354])) {
-                error_log("SMTP error on cmd [{$cmd}]: {$resp}");
-                fclose($socket);
-                return false;
-            }
+        // Use port 587 with STARTTLS (Railway allows this, blocks 465)
+        $socket = fsockopen('tcp://smtp.gmail.com', 587, $errno, $errstr, 15);
+        if (!$socket) {
+            error_log("SMTP fsockopen failed: {$errno} {$errstr}");
+            return false;
         }
 
-        // Send email body
-        $boundary = md5(time());
+        stream_set_timeout($socket, 15);
+
+        $read = fgets($socket, 512);
+        error_log("SMTP banner: {$read}");
+        if (strpos($read, '220') === false) { fclose($socket); return false; }
+
+        // EHLO
+        fwrite($socket, "EHLO railway.app\r\n");
+        $ehlo = '';
+        while ($line = fgets($socket, 512)) {
+            $ehlo .= $line;
+            if (substr($line, 3, 1) === ' ') break; // last line of EHLO
+        }
+        error_log("SMTP EHLO: {$ehlo}");
+
+        // STARTTLS
+        fwrite($socket, "STARTTLS\r\n");
+        $resp = fgets($socket, 512);
+        error_log("SMTP STARTTLS: {$resp}");
+        if (strpos($resp, '220') === false) { fclose($socket); return false; }
+
+        // Upgrade to TLS
+        stream_socket_enable_crypto($socket, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+
+        // EHLO again after TLS
+        fwrite($socket, "EHLO railway.app\r\n");
+        while ($line = fgets($socket, 512)) {
+            if (substr($line, 3, 1) === ' ') break;
+        }
+
+        // AUTH LOGIN
+        fwrite($socket, "AUTH LOGIN\r\n");
+        $resp = fgets($socket, 512);
+        error_log("SMTP AUTH: {$resp}");
+        if (strpos($resp, '334') === false) { fclose($socket); return false; }
+
+        fwrite($socket, base64_encode($user) . "\r\n");
+        $resp = fgets($socket, 512);
+        error_log("SMTP USER: {$resp}");
+        if (strpos($resp, '334') === false) { fclose($socket); return false; }
+
+        fwrite($socket, base64_encode($pass) . "\r\n");
+        $resp = fgets($socket, 512);
+        error_log("SMTP PASS: {$resp}");
+        if (strpos($resp, '235') === false) { fclose($socket); return false; }
+
+        // MAIL FROM
+        fwrite($socket, "MAIL FROM:<{$user}>\r\n");
+        $resp = fgets($socket, 512);
+        error_log("SMTP MAIL FROM: {$resp}");
+        if (strpos($resp, '250') === false) { fclose($socket); return false; }
+
+        // RCPT TO
+        fwrite($socket, "RCPT TO:<{$to}>\r\n");
+        $resp = fgets($socket, 512);
+        error_log("SMTP RCPT TO: {$resp}");
+        if (strpos($resp, '250') === false) { fclose($socket); return false; }
+
+        // DATA
+        fwrite($socket, "DATA\r\n");
+        $resp = fgets($socket, 512);
+        error_log("SMTP DATA: {$resp}");
+        if (strpos($resp, '354') === false) { fclose($socket); return false; }
+
+        // Send headers + body
         $headers  = "From: Luna's POS <{$user}>\r\n";
         $headers .= "To: {$to}\r\n";
         $headers .= "Subject: {$subject}\r\n";
@@ -223,6 +264,7 @@ function sendSmtp(string $to, string $subject, string $htmlBody, string $user, s
 
         fwrite($socket, $headers . "\r\n" . $htmlBody . "\r\n.\r\n");
         $resp = fgets($socket, 512);
+        error_log("SMTP send result: {$resp}");
         fwrite($socket, "QUIT\r\n");
         fclose($socket);
 
