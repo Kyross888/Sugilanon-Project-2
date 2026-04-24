@@ -14,14 +14,15 @@ if ($isApiRequest) {
     // Suppress notices/warnings so they don't corrupt JSON output
     error_reporting(E_ERROR);
     ini_set('display_errors', '0');
+
+    require_once 'db.php'; // db.php also defines respond() — do NOT redefine it here
+
     header('Content-Type: application/json');
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type');
 
-    require_once 'db.php';
-
-    define('SMS_API_KEY',  'YOUR_SEMAPHORE_API_KEY_HERE');
-    define('SMS_SENDER',   'LunasPOS');
+    if (!defined('SMS_API_KEY')) define('SMS_API_KEY', 'YOUR_SEMAPHORE_API_KEY_HERE');
+    if (!defined('SMS_SENDER'))  define('SMS_SENDER',  'LunasPOS');
 
     $action = $_GET['action'] ?? '';
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
@@ -153,12 +154,7 @@ function sendSMS(string $number, string $message): bool {
     return $httpCode === 200;
 }
 
-// ── HELPER: JSON respond & exit ────────────────────────────
-function respond(array $data, int $code = 200): never {
-    http_response_code($code);
-    echo json_encode($data);
-    exit;
-}
+// respond() is already defined in db.php — no redefinition needed
 
 // ── HTML PAGE (GET requests only) ──────────────────────────
 if (!$isApiRequest) {
