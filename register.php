@@ -185,8 +185,8 @@
             </div>
 
             <div class="input-group">
-                <label>Mobile Number <span style="font-weight:400;color:#94a3b8;font-size:12px;">(for SMS password reset)</span></label>
-                <input type="tel" name="phone" placeholder="09171234567" pattern="09\d{9}" title="Enter a valid PH number starting with 09">
+                <label>Mobile Number <span style="font-weight:400;color:#e53e3e;font-size:12px;">* required for SMS reset</span></label>
+                <input type="tel" name="phone" placeholder="09171234567" pattern="09\d{9}" title="Enter a valid PH number starting with 09" required>
             </div>
 
             <div class="input-group">
@@ -239,9 +239,15 @@
             btn.textContent = 'Creating…';
             btn.disabled = true;
 
-            // Validate phone if provided
+            // Validate phone — required for SMS password reset
             const phone = this.phone.value.trim();
-            if (phone && !/^09\d{9}$/.test(phone)) {
+            if (!phone) {
+                alert('Mobile number is required for SMS password reset.');
+                btn.textContent = 'Create Account';
+                btn.disabled = false;
+                return;
+            }
+            if (!/^09\d{9}$/.test(phone)) {
                 alert('Enter a valid PH mobile number starting with 09 (e.g. 09171234567).');
                 btn.textContent = 'Create Account';
                 btn.disabled = false;
