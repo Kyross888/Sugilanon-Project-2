@@ -26,7 +26,7 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
     $rows = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.subtotal, t.discount, t.coupon_discount, t.total, t.created_at, u.first_name, u.last_name, (SELECT COUNT(*) FROM transaction_items WHERE transaction_id = t.id) AS item_count FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE DATE(CONVERT_TZ(t.created_at, '+00:00', '+08:00')) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter ORDER BY t.created_at DESC");
     $rows->execute($params);
 
-    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty, p.image_path, p.icon FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id LEFT JOIN products p ON ti.product_id = p.id WHERE DATE(CONVERT_TZ(t.created_at, '+00:00', '+08:00')) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter GROUP BY ti.product_name, p.image_path, p.icon ORDER BY qty DESC LIMIT 1";
+    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty, p.image_path, p.icon FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id LEFT JOIN products p ON ti.product_id = p.id WHERE DATE(CONVERT_TZ(t.created_at, '+00:00', '+08:00')) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter GROUP BY ti.product_name, p.image_path, p.icon ORDER BY qty DESC LIMIT 1");
     $best->execute($params);
     $bestSeller = $best->fetch();
 
