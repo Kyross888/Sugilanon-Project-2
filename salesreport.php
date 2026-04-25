@@ -11,7 +11,7 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
     require_once 'db.php';
     requireAuth();
 
-    $date_from = $_GET['date_from'] ?? date('Y-m-d');
+    $date_from = $_GET['date_from'] ?? (new DateTime('now', new DateTimeZone('Asia/Manila')))->format('Y-m-d');
     $date_to   = $_GET['date_to']   ?? $date_from;
     $branch_id = $_GET['branch_id'] ?? '';
 
@@ -19,14 +19,14 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
     $params       = [$date_from, $date_to];
     if ($branch_id) { $branchFilter = " AND t.branch_id = ?"; $params[] = (int)$branch_id; }
 
-    $kpi = $pdo->prepare("SELECT COALESCE(SUM(t.total), 0) AS total_revenue, COUNT(t.id) AS total_orders, COALESCE(SUM(t.discount + t.coupon_discount), 0) AS total_discounts FROM transactions t WHERE DATE(t.created_at) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter");
+    $kpi = $pdo->prepare("SELECT COALESCE(SUM(t.total), 0) AS total_revenue, COUNT(t.id) AS total_orders, COALESCE(SUM(t.discount + t.coupon_discount), 0) AS total_discounts FROM transactions t WHERE DATE(CONVERT_TZ(t.created_at, '+00:00', '+08:00')) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter");
     $kpi->execute($params);
     $summary = $kpi->fetch();
 
-    $rows = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.subtotal, t.discount, t.coupon_discount, t.total, t.created_at, u.first_name, u.last_name, (SELECT COUNT(*) FROM transaction_items WHERE transaction_id = t.id) AS item_count FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE DATE(t.created_at) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter ORDER BY t.created_at DESC");
+    $rows = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.subtotal, t.discount, t.coupon_discount, t.total, t.created_at, u.first_name, u.last_name, (SELECT COUNT(*) FROM transaction_items WHERE transaction_id = t.id) AS item_count FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE DATE(CONVERT_TZ(t.created_at, '+00:00', '+08:00')) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter ORDER BY t.created_at DESC");
     $rows->execute($params);
 
-    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty, p.image_path, p.icon FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id LEFT JOIN products p ON ti.product_id = p.id WHERE DATE(t.created_at) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter GROUP BY ti.product_name, p.image_path, p.icon ORDER BY qty DESC LIMIT 1");
+    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty, p.image_path, p.icon FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id LEFT JOIN products p ON ti.product_id = p.id WHERE DATE(CONVERT_TZ(t.created_at, '+00:00', '+08:00')) BETWEEN ? AND ? AND t.status = 'completed' $branchFilter GROUP BY ti.product_name, p.image_path, p.icon ORDER BY qty DESC LIMIT 1";
     $best->execute($params);
     $bestSeller = $best->fetch();
 
@@ -525,7 +525,7 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
                 return;
             }
             transactions.forEach(t => {
-                const dt = new Date(t.created_at);
+                const dt = new Date(t.created_at + ' UTC');
                 const timeStr = dt.toLocaleTimeString('en-PH', {
                     hour: '2-digit',
                     minute: '2-digit'
@@ -552,7 +552,8 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
             const user = await requireLogin();
             if (!user) return;
             const datePicker = document.querySelector('.date-picker');
-            const today = new Date().toISOString().split('T')[0];
+            const now = new Date();
+            const today = now.toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' }); // 'en-CA' gives YYYY-MM-DD format
             datePicker.value = today;
             await loadReport(today);
             datePicker.addEventListener('change', () => loadReport(datePicker.value));
