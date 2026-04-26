@@ -17,24 +17,32 @@ if (isset($_GET['action'])) {
 
     $action = $_GET['action'] ?? 'all_branches';
 
+    // Validate and sanitize date input
+    $date = $_GET['date'] ?? date('Y-m-d');
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+        $date = date('Y-m-d');
+    }
+
     if ($action === 'all_branches') {
-        $stmt = $pdo->query("SELECT b.id, b.name, b.address, COALESCE(SUM(t.total), 0) AS sales_today, COUNT(t.id) AS orders_today FROM branches b LEFT JOIN transactions t ON t.branch_id = b.id AND DATE(t.created_at) = CURDATE() AND t.status = 'completed' GROUP BY b.id, b.name, b.address ORDER BY b.id ASC");
+        $stmt = $pdo->prepare("SELECT b.id, b.name, b.address, COALESCE(SUM(t.total), 0) AS sales_today, COUNT(t.id) AS orders_today FROM branches b LEFT JOIN transactions t ON t.branch_id = b.id AND DATE(t.created_at) = ? AND t.status = 'completed' GROUP BY b.id, b.name, b.address ORDER BY b.id ASC");
+        $stmt->execute([$date]);
         respond(['success' => true, 'data' => $stmt->fetchAll()]);
     }
 
     if ($action === 'branch') {
         $branchId = (int)($_GET['id'] ?? 0);
         if (!$branchId) respond(['success' => false, 'error' => 'Branch ID required.'], 400);
-        $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE branch_id = ? AND DATE(created_at) = CURDATE() AND status = 'completed'");
-        $kpi->execute([$branchId]);
+        $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE branch_id = ? AND DATE(created_at) = ? AND status = 'completed'");
+        $kpi->execute([$branchId, $date]);
         $kpiRow = $kpi->fetch();
-        $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, GROUP_CONCAT(CONCAT(ti.quantity, 'x ', ti.product_name) ORDER BY ti.id SEPARATOR ', ') AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.branch_id = ? AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
-        $txns->execute([$branchId]);
+        $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, GROUP_CONCAT(CONCAT(ti.quantity, 'x ', ti.product_name) ORDER BY ti.id SEPARATOR ', ') AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.branch_id = ? AND DATE(t.created_at) = ? AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+        $txns->execute([$branchId, $date]);
         respond(['success' => true, 'kpi' => $kpiRow, 'transactions' => $txns->fetchAll()]);
     }
 
     if ($action === 'totals') {
-        $stmt = $pdo->query("SELECT COALESCE(SUM(total), 0) AS total_revenue, COUNT(*) AS total_orders FROM transactions WHERE DATE(created_at) = CURDATE() AND status = 'completed'");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS total_revenue, COUNT(*) AS total_orders FROM transactions WHERE DATE(created_at) = ? AND status = 'completed'");
+        $stmt->execute([$date]);
         respond(['success' => true, 'data' => $stmt->fetch()]);
     }
 
@@ -146,21 +154,60 @@ if (isset($_GET['action'])) {
             letter-spacing: -0.5px;
         }
 
-        /* Header logo pill */
-        .header-logo-pill {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: white;
-            border: 1px solid #e2e8f0;
-            border-radius: 16px;
-            padding: 8px 16px 8px 8px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+        /* Date filter styles */
+        .date-btn {
+            padding: 5px 13px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 700;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
         }
-
-        .dark .header-logo-pill {
-            background: rgb(30 41 59);
+        .date-btn.active-date {
+            background: #4f46e5;
+            color: #fff;
+            border-color: #4f46e5;
+        }
+        .date-btn:not(.active-date) {
+            background: transparent;
+            color: #64748b;
+            border-color: #e2e8f0;
+        }
+        .date-btn:not(.active-date):hover {
+            border-color: #4f46e5;
+            color: #4f46e5;
+        }
+        .dark .date-btn:not(.active-date) {
+            color: #94a3b8;
             border-color: rgb(51 65 85);
+        }
+        .dark .date-btn:not(.active-date):hover {
+            border-color: #6366f1;
+            color: #818cf8;
+        }
+        input[type="date"].date-input {
+            background: transparent;
+            border: 1px solid #e2e8f0;
+            border-radius: 999px;
+            padding: 5px 13px;
+            font-size: 11px;
+            font-weight: 700;
+            color: #64748b;
+            outline: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        input[type="date"].date-input:focus {
+            border-color: #4f46e5;
+            color: #4f46e5;
+        }
+        .dark input[type="date"].date-input {
+            border-color: rgb(51 65 85);
+            color: #94a3b8;
+            color-scheme: dark;
         }
     </style>
 </head>
@@ -314,53 +361,48 @@ if (isset($_GET['action'])) {
             ════════════════════════════════════ -->
             <main id="page-home" class="page-view active w-full p-6 md:p-10 lg:p-12 max-w-7xl mx-auto">
 
-                <!-- Page Header with Logo -->
+                <!-- Page Header -->
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
 
-                    <!-- Left: Logo pill + Title -->
-                    <div class="flex items-center gap-4">
-                        <!-- Logo Pill -->
-                        <div class="header-logo-pill">
-                            <div class="w-10 h-10 rounded-xl overflow-hidden ring-1 ring-indigo-100 dark:ring-indigo-500/30 shrink-0">
-                                <img
-                                    src="logo.jpg"
-                                    alt="Luna's"
-                                    class="w-full h-full object-cover"
-                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-                                >
-                                <div class="logo-fallback w-full h-full" style="display:none; font-size:0.85rem;">L</div>
-                            </div>
-                            <div>
-                                <p class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">Luna's</p>
-                                <p class="text-sm font-black text-slate-800 dark:text-slate-100 leading-tight">POS Admin</p>
-                            </div>
-                        </div>
-
-                        <div>
-                            <h1 class="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none">Dashboard</h1>
-                            <p class="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">Overview &amp; Analytics</p>
-                        </div>
+                    <!-- Left: Title -->
+                    <div>
+                        <h1 class="text-2xl md:text-3xl font-black text-slate-900 dark:text-white uppercase tracking-tight leading-none">Dashboard</h1>
+                        <p class="text-xs text-slate-400 dark:text-slate-500 font-medium mt-0.5">Overview &amp; Analytics</p>
                     </div>
 
-                    <!-- Right: Branch Selector -->
-                    <div class="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm w-full sm:w-auto">
-                        <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center shrink-0">
-                            <i class="fas fa-store text-indigo-500 dark:text-indigo-400 text-sm"></i>
+                    <!-- Right: Date Filter + Branch Selector -->
+                    <div class="flex flex-wrap items-center gap-3">
+
+                        <!-- Date Filter pill -->
+                        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-2.5 shadow-sm">
+                            <i class="fas fa-calendar-alt text-indigo-400 text-sm shrink-0"></i>
+                            <div class="flex items-center gap-1.5">
+                                <button id="btn-today" class="date-btn active-date" onclick="setDate('today')">Today</button>
+                                <button id="btn-yesterday" class="date-btn" onclick="setDate('yesterday')">Yesterday</button>
+                                <input type="date" id="customDate" class="date-input" onchange="setDate('custom')" title="Pick any date">
+                            </div>
                         </div>
-                        <div class="flex flex-col min-w-0">
-                            <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Branch</span>
-                            <select id="branchSelect" onchange="switchBranch()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
-                                <option value="festive">Festive Mall</option>
-                                <option value="sm_central">SM Central Market</option>
-                                <option value="gen_luna" selected>General Luna</option>
-                                <option value="jaro">Jaro</option>
-                                <option value="molo">Molo</option>
-                                <option value="la_paz">La Paz</option>
-                                <option value="calumpang">Calumpang</option>
-                                <option value="tagbak">Tagbak</option>
-                            </select>
+
+                        <!-- Branch Selector -->
+                        <div class="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm w-full sm:w-auto">
+                            <div class="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center shrink-0">
+                                <i class="fas fa-store text-indigo-500 dark:text-indigo-400 text-sm"></i>
+                            </div>
+                            <div class="flex flex-col min-w-0">
+                                <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Branch</span>
+                                <select id="branchSelect" onchange="switchBranch()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
+                                    <option value="festive">Festive Mall</option>
+                                    <option value="sm_central">SM Central Market</option>
+                                    <option value="gen_luna" selected>General Luna</option>
+                                    <option value="jaro">Jaro</option>
+                                    <option value="molo">Molo</option>
+                                    <option value="la_paz">La Paz</option>
+                                    <option value="calumpang">Calumpang</option>
+                                    <option value="tagbak">Tagbak</option>
+                                </select>
+                            </div>
+                            <i class="fas fa-chevron-down text-slate-400 text-xs shrink-0"></i>
                         </div>
-                        <i class="fas fa-chevron-down text-slate-400 text-xs shrink-0"></i>
                     </div>
                 </div>
 
@@ -369,7 +411,7 @@ if (isset($_GET['action'])) {
                     <div>
                         <div class="flex items-center gap-2 mb-3">
                             <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
-                            <p class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">All Branches Combined — Today</p>
+                            <p id="banner-date-label" class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">All Branches Combined — Today</p>
                         </div>
                         <h2 id="all-branches-total" class="text-4xl md:text-5xl font-black text-white tracking-tight mb-1">₱ 0.00</h2>
                         <p class="text-slate-400 text-sm font-medium">Total revenue across all <span id="all-branches-count" class="text-indigo-400 font-bold">8</span> branches</p>
@@ -448,16 +490,8 @@ if (isset($_GET['action'])) {
                  STATS PAGE
             ════════════════════════════════════ -->
             <main id="page-stats" class="page-view w-full p-6 md:p-10 lg:p-12 max-w-7xl mx-auto">
-                <!-- Stats Header with Logo -->
+                <!-- Stats Header -->
                 <div class="flex items-center gap-4 mb-8">
-                    <div class="header-logo-pill">
-                        <div class="w-9 h-9 rounded-xl overflow-hidden ring-1 ring-indigo-100 dark:ring-indigo-500/30 shrink-0">
-                            <img src="logo.jpg" alt="Luna's" class="w-full h-full object-cover"
-                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                            <div class="logo-fallback w-full h-full" style="display:none; font-size:0.75rem;">L</div>
-                        </div>
-                        <span class="text-sm font-black text-slate-700 dark:text-slate-200">Luna's POS</span>
-                    </div>
                     <h1 class="text-3xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Executive Summary</h1>
                 </div>
 
@@ -545,13 +579,8 @@ if (isset($_GET['action'])) {
             <main id="page-admin" class="page-view w-full p-6 md:p-10 lg:p-12 max-w-7xl mx-auto">
                 <div class="flex flex-col md:flex-row md:justify-between md:items-end mb-10 gap-6">
                     <div>
-                        <!-- Logo + branch badge row -->
+                        <!-- Branch badge row -->
                         <div class="flex items-center gap-3 mb-4">
-                            <div class="w-9 h-9 rounded-xl overflow-hidden ring-1 ring-indigo-100 dark:ring-indigo-500/30 shadow-sm shrink-0">
-                                <img src="logo.jpg" alt="Luna's" class="w-full h-full object-cover"
-                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="logo-fallback w-full h-full" style="display:none; font-size:0.75rem;">L</div>
-                            </div>
                             <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">
                                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
                                 <span id="sales-branch-status">General Luna</span> Online
@@ -560,7 +589,16 @@ if (isset($_GET['action'])) {
                         <h1 class="text-4xl md:text-5xl font-black text-slate-900 dark:text-white tracking-tight">Sales Overview</h1>
                         <p class="text-slate-500 dark:text-slate-400 mt-2 font-medium">Daily transaction summary</p>
                     </div>
-                    <div class="flex items-center gap-3">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <!-- Date filter (Sales page) -->
+                        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-2.5 shadow-sm">
+                            <i class="fas fa-calendar-alt text-indigo-400 text-sm shrink-0"></i>
+                            <div class="flex items-center gap-1.5">
+                                <button id="sbtn-today" class="date-btn active-date" onclick="setDate('today')">Today</button>
+                                <button id="sbtn-yesterday" class="date-btn" onclick="setDate('yesterday')">Yesterday</button>
+                                <input type="date" id="scustomDate" class="date-input" onchange="setSalesDate()" title="Pick any date">
+                            </div>
+                        </div>
                         <div class="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm">
                             <i class="fas fa-store text-indigo-500 text-sm"></i>
                             <select id="branchSelectSales" onchange="switchBranchFromSales()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
@@ -589,13 +627,8 @@ if (isset($_GET['action'])) {
             <main id="page-live" class="page-view w-full p-6 md:p-10 lg:p-12">
                 <div class="flex flex-col items-center justify-center min-h-[80vh]">
                     <div class="w-full max-w-3xl flex flex-col items-center">
-                        <!-- Live header with logo -->
+                        <!-- Live header -->
                         <div class="flex flex-col items-center mb-16 text-center">
-                            <div class="w-16 h-16 rounded-2xl overflow-hidden ring-2 ring-indigo-200 dark:ring-indigo-500/30 shadow-lg mb-5">
-                                <img src="logo.jpg" alt="Luna's" class="w-full h-full object-cover"
-                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                                <div class="logo-fallback w-full h-full" style="display:none;">L</div>
-                            </div>
                             <div class="flex items-center gap-4 mb-3">
                                 <span class="w-5 h-5 bg-rose-500 rounded-full animate-pulse-red shadow-[0_0_15px_rgba(244,63,94,0.6)]"></span>
                                 <h1 class="text-5xl md:text-6xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Live</h1>
@@ -630,16 +663,8 @@ if (isset($_GET['action'])) {
                  SETTINGS PAGE
             ════════════════════════════════════ -->
             <main id="page-settings" class="page-view w-full p-6 md:p-10 lg:p-12 max-w-7xl mx-auto">
-                <!-- Settings header with logo -->
+                <!-- Settings header -->
                 <div class="flex items-center gap-4 mb-8">
-                    <div class="header-logo-pill">
-                        <div class="w-9 h-9 rounded-xl overflow-hidden ring-1 ring-indigo-100 dark:ring-indigo-500/30 shrink-0">
-                            <img src="logo.jpg" alt="Luna's" class="w-full h-full object-cover"
-                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                            <div class="logo-fallback w-full h-full" style="display:none; font-size:0.75rem;">L</div>
-                        </div>
-                        <span class="text-sm font-black text-slate-700 dark:text-slate-200">Luna's POS</span>
-                    </div>
                     <h1 class="text-3xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight transition-colors duration-300">System Settings</h1>
                 </div>
 
@@ -694,18 +719,83 @@ if (isset($_GET['action'])) {
         };
 
         const branchInfo = {
-            festive:    { name: 'Festive Mall',       location: 'Festive Walk Mall, Iloilo City',       status: 'Active' },
-            sm_central: { name: 'SM Central Market',  location: 'SM City Iloilo, Central Market Area',  status: 'Active' },
-            gen_luna:   { name: 'General Luna',       location: 'General Luna St., Iloilo City',        status: 'Active' },
-            jaro:       { name: 'Jaro',               location: 'Jaro District, Iloilo City',           status: 'Active' },
-            molo:       { name: 'Molo',               location: 'Molo District, Iloilo City',           status: 'Active' },
-            la_paz:     { name: 'La Paz',             location: 'La Paz District, Iloilo City',         status: 'Active' },
-            calumpang:  { name: 'Calumpang',          location: 'Calumpang, Iloilo City',               status: 'Active' },
+            festive:    { name: 'Festive Mall',       location: 'Festive Walk Mall, Iloilo City',          status: 'Active' },
+            sm_central: { name: 'SM Central Market',  location: 'SM City Iloilo, Central Market Area',     status: 'Active' },
+            gen_luna:   { name: 'General Luna',       location: 'General Luna St., Iloilo City',           status: 'Active' },
+            jaro:       { name: 'Jaro',               location: 'Jaro District, Iloilo City',              status: 'Active' },
+            molo:       { name: 'Molo',               location: 'Molo District, Iloilo City',              status: 'Active' },
+            la_paz:     { name: 'La Paz',             location: 'La Paz District, Iloilo City',            status: 'Active' },
+            calumpang:  { name: 'Calumpang',          location: 'Calumpang, Iloilo City',                  status: 'Active' },
             tagbak:     { name: 'Tagbak',             location: 'Tagbak Terminal Area, Jaro, Iloilo City', status: 'Active' },
         };
 
-        let currentBranch  = 'gen_luna';
-        let allBranchData  = {};
+        let currentBranch = 'gen_luna';
+        let allBranchData = {};
+
+        // ── Date helpers ───────────────────────────────────────
+        function todayStr() {
+            return new Date().toISOString().slice(0, 10);
+        }
+        function yesterdayStr() {
+            const d = new Date();
+            d.setDate(d.getDate() - 1);
+            return d.toISOString().slice(0, 10);
+        }
+
+        let selectedDate = todayStr();
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('customDate').value  = todayStr();
+            document.getElementById('scustomDate').value = todayStr();
+        });
+
+        function setDate(mode) {
+            if (mode === 'today') {
+                selectedDate = todayStr();
+            } else if (mode === 'yesterday') {
+                selectedDate = yesterdayStr();
+            } else if (mode === 'custom') {
+                const v = document.getElementById('customDate').value;
+                if (v) selectedDate = v;
+            }
+            syncDateUI();
+            loadAllBranchesFromDB();
+        }
+
+        function setSalesDate() {
+            const v = document.getElementById('scustomDate').value;
+            if (v) {
+                selectedDate = v;
+                document.getElementById('customDate').value = v;
+            }
+            syncDateUI();
+            loadAllBranchesFromDB();
+        }
+
+        function syncDateUI() {
+            const isToday     = selectedDate === todayStr();
+            const isYesterday = selectedDate === yesterdayStr();
+
+            ['btn-today',  'btn-yesterday' ].forEach(id => document.getElementById(id).classList.remove('active-date'));
+            ['sbtn-today', 'sbtn-yesterday'].forEach(id => document.getElementById(id).classList.remove('active-date'));
+
+            if (isToday)          { document.getElementById('btn-today').classList.add('active-date');     document.getElementById('sbtn-today').classList.add('active-date'); }
+            else if (isYesterday) { document.getElementById('btn-yesterday').classList.add('active-date'); document.getElementById('sbtn-yesterday').classList.add('active-date'); }
+
+            document.getElementById('customDate').value  = selectedDate;
+            document.getElementById('scustomDate').value = selectedDate;
+
+            // Update banner label
+            let label = 'All Branches Combined';
+            if (isToday)          label += ' — Today';
+            else if (isYesterday) label += ' — Yesterday';
+            else {
+                const d = new Date(selectedDate + 'T00:00:00');
+                label += ' — ' + d.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+            }
+            const bannerLbl = document.getElementById('banner-date-label');
+            if (bannerLbl) bannerLbl.textContent = label;
+        }
 
         // ── Boot ───────────────────────────────────────────────
         async function adminBoot() {
@@ -720,7 +810,7 @@ if (isset($_GET['action'])) {
         // ── Load all branches from DB ──────────────────────────
         async function loadAllBranchesFromDB() {
             try {
-                const res = await fetch('admin.php?action=all_branches', { credentials: 'same-origin' }).then(r => r.json());
+                const res = await fetch(`admin.php?action=all_branches&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
                 if (!res || !res.success) return;
 
                 let totalRevenue = 0, totalOrders = 0, topBranch = null, topRevenue = 0;
@@ -743,29 +833,25 @@ if (isset($_GET['action'])) {
                     };
                 });
 
-                // Fill any branch with no data yet
                 Object.keys(branchInfo).forEach(k => {
                     if (!allBranchData[k]) allBranchData[k] = {
                         ...branchInfo[k], sales: '₱ 0.00', salesRaw: 0, orders: 0, growth: '—'
                     };
                 });
 
-                // ── Banner ──
                 document.getElementById('all-branches-total').textContent =
                     '₱ ' + totalRevenue.toLocaleString('en-PH', { minimumFractionDigits: 2 });
                 document.getElementById('all-branches-orders').textContent = totalOrders;
                 document.getElementById('all-branches-top').textContent   = topBranch || '—';
 
-                // Stock counts
                 try {
                     const kpis = await fetch('dashboard.php?action=kpis', { credentials: 'same-origin' }).then(r => r.json());
                     if (kpis && kpis.success) {
-                        document.getElementById('all-branches-lowstock').textContent  = kpis.low_stock;
-                        document.getElementById('all-branches-outstock').textContent  = kpis.out_of_stock;
+                        document.getElementById('all-branches-lowstock').textContent = kpis.low_stock;
+                        document.getElementById('all-branches-outstock').textContent = kpis.out_of_stock;
                     }
                 } catch (_) {}
 
-                // ── Revenue bars ──
                 const bars   = document.getElementById('all-branches-bars');
                 const maxRev = Math.max(...Object.values(allBranchData).map(b => b.salesRaw), 1);
                 bars.innerHTML = Object.entries(allBranchData).map(([key, b]) => {
@@ -797,10 +883,10 @@ if (isset($_GET['action'])) {
             tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400 text-sm">Loading transactions…</td></tr>`;
 
             try {
-                const res = await fetch(`admin.php?action=branch&id=${branchId}`, { credentials: 'same-origin' }).then(r => r.json());
+                const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
 
                 if (!res || !res.success || !res.transactions.length) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-400">No transactions recorded today for this branch.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-400">No transactions recorded for this branch on the selected date.</td></tr>`;
                     return;
                 }
 
@@ -830,17 +916,18 @@ if (isset($_GET['action'])) {
             const tbody    = document.getElementById('history-modal-body');
 
             try {
-                const res = await fetch(`admin.php?action=branch&id=${branchId}`, { credentials: 'same-origin' }).then(r => r.json());
+                const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
                 if (!res.success || !res.transactions.length) {
-                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No transactions for this branch today.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
                     return;
                 }
                 tbody.innerHTML = res.transactions.map(t => {
-                    const dt   = new Date(t.created_at);
-                    const time = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+                    const dt        = new Date(t.created_at);
+                    const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+                    const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
                     return `<tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-6 py-4">
-                            <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-1 inline-block">Today</span>
+                            <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-1 inline-block">${dateLabel}</span>
                             <p class="text-xs text-slate-500 font-medium">${time}</p>
                         </td>
                         <td class="px-6 py-4">
@@ -910,23 +997,23 @@ if (isset($_GET['action'])) {
 
         function applyBranchData() {
             const b = allBranchData[currentBranch] || { ...branchInfo[currentBranch], sales: '₱ 0.00', orders: 0, growth: '—' };
-            document.getElementById('home-branch-label').innerText  = b.name;
-            document.getElementById('home-total-sales').innerText   = b.sales;
-            document.getElementById('home-orders').innerText        = b.orders;
-            document.getElementById('home-growth').innerText        = b.growth;
+            document.getElementById('home-branch-label').innerText   = b.name;
+            document.getElementById('home-total-sales').innerText    = b.sales;
+            document.getElementById('home-orders').innerText         = b.orders;
+            document.getElementById('home-growth').innerText         = b.growth;
             document.getElementById('sales-branch-status').innerText = b.name;
-            document.getElementById('live-branch-label').innerText  = b.name;
-            document.getElementById('live-branch-name').innerText   = b.name;
+            document.getElementById('live-branch-label').innerText   = b.name;
+            document.getElementById('live-branch-name').innerText    = b.name;
             renderBranchCards(b);
         }
 
         function renderBranchCards(b) {
             const grid  = document.getElementById('branch-cards-grid');
             const cards = [
-                { icon: 'fa-cash-register',    label: 'Gross Sales',   value: b.sales,    sub: "Today's Revenue",  color: 'text-emerald-600 dark:text-emerald-400' },
-                { icon: 'fa-receipt',          label: 'Total Orders',  value: b.orders,   sub: 'Completed today',  color: 'text-indigo-600 dark:text-indigo-400'   },
-                { icon: 'fa-arrow-trend-up',   label: 'Growth',        value: b.growth,   sub: 'vs yesterday',     color: 'text-sky-600 dark:text-sky-400'         },
-                { icon: 'fa-map-marker-alt',   label: 'Branch',        value: b.name,     sub: b.location,         color: 'text-violet-600 dark:text-violet-400'   },
+                { icon: 'fa-cash-register',  label: 'Gross Sales',  value: b.sales,  sub: 'Revenue for selected date', color: 'text-emerald-600 dark:text-emerald-400' },
+                { icon: 'fa-receipt',        label: 'Total Orders', value: b.orders, sub: 'Completed orders',           color: 'text-indigo-600 dark:text-indigo-400'   },
+                { icon: 'fa-arrow-trend-up', label: 'Growth',       value: b.growth, sub: 'vs yesterday',               color: 'text-sky-600 dark:text-sky-400'         },
+                { icon: 'fa-map-marker-alt', label: 'Branch',       value: b.name,   sub: b.location,                   color: 'text-violet-600 dark:text-violet-400'   },
             ];
             grid.innerHTML = cards.map(c => `
                 <div onclick="viewBranchDetails('${c.label}', '${c.value}', '${b.status}', '${b.location}')"
@@ -943,7 +1030,6 @@ if (isset($_GET['action'])) {
                 </div>`).join('');
         }
 
-        // Boot on load
         document.addEventListener('DOMContentLoaded', adminBoot);
 
         // ── SPA Routing ────────────────────────────────────────
@@ -1008,7 +1094,7 @@ if (isset($_GET['action'])) {
             if (btn) { btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting…'; btn.disabled = true; }
 
             try {
-                const res  = await fetch(`admin.php?action=branch&id=${branchId}`, { credentials: 'same-origin' }).then(r => r.json());
+                const res  = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
                 const txns = (res.success && res.transactions) ? res.transactions : [];
 
                 const headers = ['Branch', 'Date', 'Time', 'Reference', 'Items', 'Type', 'Amount (PHP)'];
@@ -1025,14 +1111,13 @@ if (isset($_GET['action'])) {
                     ];
                 });
 
-                const esc     = val => `"${String(val).replace(/"/g,'""')}"`;
-                const csv     = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
-                const blob    = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
-                const url     = URL.createObjectURL(blob);
-                const today   = new Date().toISOString().slice(0,10);
-                const a       = document.createElement('a');
-                a.href        = url;
-                a.download    = `sales_${b.name.replace(/\s+/g,'_')}_${today}.csv`;
+                const esc  = val => `"${String(val).replace(/"/g,'""')}"`;
+                const csv  = [headers, ...rows].map(r => r.map(esc).join(',')).join('\n');
+                const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement('a');
+                a.href     = url;
+                a.download = `sales_${b.name.replace(/\s+/g,'_')}_${selectedDate}.csv`;
                 document.body.appendChild(a); a.click(); document.body.removeChild(a);
                 URL.revokeObjectURL(url);
 
@@ -1053,7 +1138,7 @@ if (isset($_GET['action'])) {
 
         // ── Charts ─────────────────────────────────────────────
         function initCharts() {
-            Chart.defaults.color      = '#64748b';
+            Chart.defaults.color       = '#64748b';
             Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
 
             new Chart(document.getElementById('revenueChart'), {
@@ -1061,23 +1146,23 @@ if (isset($_GET['action'])) {
                 data: {
                     labels:   ['W1','W2','W3','W4'],
                     datasets: [{
-                        data:            [10000,11500,9500,12450],
-                        borderColor:     '#4f46e5',
-                        borderWidth:     3,
-                        tension:         0.4,
-                        fill:            true,
-                        backgroundColor: 'rgba(79,70,229,0.08)',
-                        pointBackgroundColor: '#ffffff',
-                        pointBorderColor:     '#4f46e5',
-                        pointBorderWidth:     2,
-                        pointRadius:          4,
-                        pointHoverRadius:     6,
+                        data:                [10000,11500,9500,12450],
+                        borderColor:         '#4f46e5',
+                        borderWidth:         3,
+                        tension:             0.4,
+                        fill:                true,
+                        backgroundColor:     'rgba(79,70,229,0.08)',
+                        pointBackgroundColor:'#ffffff',
+                        pointBorderColor:    '#4f46e5',
+                        pointBorderWidth:    2,
+                        pointRadius:         4,
+                        pointHoverRadius:    6,
                     }],
                 },
                 options: {
                     maintainAspectRatio: false,
                     plugins: {
-                        legend: { display: false },
+                        legend:  { display: false },
                         tooltip: {
                             backgroundColor: '#1e293b', padding: 12, cornerRadius: 8, displayColors: false,
                             callbacks: { label: ctx => '₱' + ctx.parsed.y.toLocaleString() },
