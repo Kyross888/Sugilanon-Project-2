@@ -68,6 +68,10 @@ if (isset($_GET['action'])) {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Admin - Complete Dashboard</title>
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
@@ -79,6 +83,28 @@ if (isset($_GET['action'])) {
     </script>
 
     <style>
+        /* ── Font base ─────────────────────────────────────── */
+        body { font-family: 'Plus Jakarta Sans', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+
+        /* ── Light mode root tokens ────────────────────────── */
+        :root {
+            --brand:        #4338ca;
+            --brand-light:  #eef2ff;
+            --brand-mid:    #6366f1;
+            --surface:      #ffffff;
+            --surface-2:    #f8fafc;
+            --surface-3:    #f1f5f9;
+            --border:       #e2e8f0;
+            --border-strong:#cbd5e1;
+            --text-primary: #0f172a;
+            --text-secondary:#475569;
+            --text-muted:   #94a3b8;
+            --shadow-sm:    0 1px 3px rgba(15,23,42,.08), 0 1px 2px rgba(15,23,42,.06);
+            --shadow-md:    0 4px 12px rgba(15,23,42,.10), 0 2px 4px rgba(15,23,42,.06);
+            --shadow-lg:    0 12px 32px rgba(15,23,42,.12), 0 4px 8px rgba(15,23,42,.06);
+            --shadow-brand: 0 8px 24px rgba(67,56,202,.22);
+        }
+
         .branch-card {
             transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
@@ -105,11 +131,17 @@ if (isset($_GET['action'])) {
 
         .page-view.active {
             display: block !important;
+            animation: pageSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
         }
 
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
             to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes pageSlideIn {
+            from { opacity: 0; transform: translateY(12px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
 
         .nav-link { transition: all 0.2s; }
@@ -209,6 +241,324 @@ if (isset($_GET['action'])) {
             color: #94a3b8;
             color-scheme: dark;
         }
+
+        /* ════════════════════════════════════════════════════
+           LIGHT MODE FIXES & ENHANCEMENTS
+           All rules scoped to html:not(.dark) so dark mode
+           is completely untouched.
+        ════════════════════════════════════════════════════ */
+
+        /* Page background */
+        html:not(.dark) body {
+            background: var(--surface-2);
+            color: var(--text-primary);
+        }
+
+        /* ── Sidebar ─────────────────────────────────────── */
+        html:not(.dark) aside {
+            background: var(--surface) !important;
+            border-right: 1px solid var(--border) !important;
+            border-top: none !important;
+            box-shadow: var(--shadow-md) !important;
+        }
+
+        /* Mobile bottom bar */
+        @media (max-width: 767px) {
+            html:not(.dark) aside {
+                border-top: 1px solid var(--border) !important;
+                border-right: none !important;
+                box-shadow: 0 -4px 16px rgba(15,23,42,.06) !important;
+            }
+        }
+
+        html:not(.dark) .nav-link.is-active {
+            background: var(--brand-light) !important;
+            color: var(--brand) !important;
+        }
+
+        html:not(.dark) .nav-link.is-inactive {
+            color: var(--text-muted) !important;
+        }
+
+        html:not(.dark) .nav-link.is-inactive:hover {
+            background: var(--surface-3) !important;
+            color: var(--text-secondary) !important;
+        }
+
+        /* Sidebar logo border */
+        html:not(.dark) aside .border-b {
+            border-color: var(--border) !important;
+        }
+
+        /* ── All-branches dark banner — keep dark, refine it ── */
+        html:not(.dark) .bg-gradient-to-r {
+            background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 55%, #312e81 100%) !important;
+            box-shadow: 0 12px 40px rgba(15,23,42,.18), 0 4px 8px rgba(15,23,42,.1) !important;
+        }
+
+        html:not(.dark) .bg-gradient-to-r .bg-white\/5 {
+            background: rgba(255,255,255,.08) !important;
+            border: 1px solid rgba(255,255,255,.13) !important;
+            backdrop-filter: blur(4px);
+            border-radius: 14px;
+        }
+
+        /* ── Branch bars strip ──────────────────────────── */
+        html:not(.dark) #all-branches-strip {
+            background: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 24px !important;
+            padding: 1.25rem 1.5rem !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        /* ── Date / branch filter pills ─────────────────── */
+        html:not(.dark) .date-btn.active-date {
+            background: var(--brand) !important;
+            border-color: var(--brand) !important;
+            box-shadow: 0 2px 8px rgba(67,56,202,.28) !important;
+        }
+
+        html:not(.dark) .date-btn:not(.active-date):hover {
+            background: var(--brand-light) !important;
+            border-color: var(--brand) !important;
+            color: var(--brand) !important;
+        }
+
+        /* Filter pill containers */
+        html:not(.dark) .flex.items-center.gap-2.bg-white,
+        html:not(.dark) .flex.items-center.gap-3.bg-white {
+            background: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        /* ── KPI cards ──────────────────────────────────── */
+        /* Blue revenue card */
+        html:not(.dark) .bg-indigo-600 {
+            background: linear-gradient(135deg, var(--brand) 0%, #6366f1 100%) !important;
+            box-shadow: var(--shadow-brand) !important;
+        }
+
+        /* White cards */
+        html:not(.dark) .bg-white.dark\:bg-slate-800.p-8.rounded-\[2rem\] {
+            background: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: var(--shadow-md) !important;
+        }
+
+        /* ── Panel cards ────────────────────────────────── */
+        html:not(.dark) .bg-white.dark\:bg-slate-800.rounded-\[2rem\].border {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        html:not(.dark) .bg-slate-50\/50 {
+            background: var(--surface-2) !important;
+        }
+
+        /* ── Branch detail cards ────────────────────────── */
+        html:not(.dark) .branch-card {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        html:not(.dark) .branch-card:hover {
+            border-color: var(--brand-mid) !important;
+            box-shadow: var(--shadow-lg) !important;
+            transform: translateY(-3px) !important;
+        }
+
+        html:not(.dark) .branch-card .w-10.h-10 {
+            background: var(--surface-3) !important;
+            border-color: var(--border) !important;
+        }
+
+        html:not(.dark) .branch-card:hover .w-10.h-10 {
+            background: var(--brand-light) !important;
+            color: var(--brand) !important;
+        }
+
+        /* ── Tables ─────────────────────────────────────── */
+        html:not(.dark) thead {
+            background: var(--surface-2) !important;
+        }
+
+        html:not(.dark) thead th {
+            color: var(--text-muted) !important;
+        }
+
+        html:not(.dark) tbody tr:hover {
+            background: var(--surface-2) !important;
+        }
+
+        html:not(.dark) tbody tr {
+            border-color: var(--border) !important;
+        }
+
+        html:not(.dark) .divide-y > * {
+            border-color: var(--border) !important;
+        }
+
+        /* ── Modals ─────────────────────────────────────── */
+        html:not(.dark) #branchModal > div:nth-child(2),
+        html:not(.dark) #historyModal > div:nth-child(2),
+        html:not(.dark) #stocksModal > div:nth-child(2) {
+            background: var(--surface) !important;
+            border: 1px solid var(--border) !important;
+            box-shadow: 0 24px 64px rgba(15,23,42,.16) !important;
+        }
+
+        html:not(.dark) #branchModal .bg-slate-50,
+        html:not(.dark) #historyModal .bg-slate-50,
+        html:not(.dark) #stocksModal .bg-slate-50 {
+            background: var(--surface-2) !important;
+            border-color: var(--border) !important;
+        }
+
+        html:not(.dark) .bg-indigo-50.border.border-indigo-100 {
+            background: #eef2ff !important;
+            border-color: #c7d2fe !important;
+        }
+
+        html:not(.dark) #branchModal .bg-slate-800,
+        html:not(.dark) #historyModal .bg-slate-800 {
+            background: var(--text-primary) !important;
+        }
+
+        /* Modal close button */
+        html:not(.dark) .bg-slate-100.hover\:bg-slate-200 {
+            background: var(--surface-3) !important;
+        }
+
+        /* ── Settings page ──────────────────────────────── */
+        html:not(.dark) .bg-white.dark\:bg-slate-800.rounded-\[2rem\].border.border-slate-200.dark\:border-slate-700.p-8 {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        html:not(.dark) .bg-white.dark\:bg-slate-800.rounded-\[2rem\].border.border-slate-200.dark\:border-slate-700.divide-y {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        html:not(.dark) .bg-slate-50.dark\:bg-slate-700\/50.rounded-xl {
+            background: var(--surface-2) !important;
+            border: 1px solid var(--border) !important;
+        }
+
+        html:not(.dark) .hover\:bg-rose-50:hover {
+            background: #fff1f2 !important;
+        }
+
+        html:not(.dark) .hover\:bg-slate-50:hover {
+            background: var(--surface-2) !important;
+        }
+
+        /* ── Status / pill badges ───────────────────────── */
+        html:not(.dark) .bg-indigo-50 {
+            background: var(--brand-light) !important;
+        }
+
+        html:not(.dark) .bg-emerald-50 {
+            background: #ecfdf5 !important;
+        }
+
+        html:not(.dark) .bg-slate-50 {
+            background: var(--surface-2) !important;
+        }
+
+        /* ── Live page card ─────────────────────────────── */
+        html:not(.dark) #page-live .bg-white {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-md) !important;
+        }
+
+        html:not(.dark) #page-live .bg-white:hover {
+            border-color: var(--brand-mid) !important;
+            box-shadow: var(--shadow-lg) !important;
+        }
+
+        html:not(.dark) #page-live .bg-indigo-50 {
+            background: var(--brand-light) !important;
+        }
+
+        html:not(.dark) #page-live .bg-emerald-50 {
+            background: #ecfdf5 !important;
+            border: 1px solid #a7f3d0 !important;
+        }
+
+        /* ── Stats page ─────────────────────────────────── */
+        html:not(.dark) #page-stats .bg-white {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        html:not(.dark) #page-stats tbody tr:hover {
+            background: var(--surface-2) !important;
+        }
+
+        /* ── Buttons ────────────────────────────────────── */
+        html:not(.dark) .bg-indigo-600.hover\:bg-indigo-700 {
+            background: var(--brand) !important;
+            box-shadow: var(--shadow-brand) !important;
+        }
+
+        html:not(.dark) .bg-indigo-600.hover\:bg-indigo-700:hover {
+            background: #3730a3 !important;
+        }
+
+        /* ── Scrollbar ──────────────────────────────────── */
+        html:not(.dark) ::-webkit-scrollbar { width: 6px; height: 6px; }
+        html:not(.dark) ::-webkit-scrollbar-track { background: var(--surface-2); }
+        html:not(.dark) ::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 99px; }
+        html:not(.dark) ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+        /* ── Reference number monospace ─────────────────── */
+        html:not(.dark) .text-indigo-600.font-bold,
+        html:not(.dark) td .text-indigo-600 {
+            font-family: 'DM Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        /* ── Inline select ──────────────────────────────── */
+        html:not(.dark) select {
+            color: var(--text-primary) !important;
+        }
+
+        /* ── Border colors ──────────────────────────────── */
+        html:not(.dark) .border-slate-200 { border-color: var(--border) !important; }
+        html:not(.dark) .border-slate-100 { border-color: var(--border) !important; }
+
+        /* ── Text colors ────────────────────────────────── */
+        html:not(.dark) .text-slate-800 { color: var(--text-primary) !important; }
+        html:not(.dark) .text-slate-600 { color: var(--text-secondary) !important; }
+        html:not(.dark) .text-slate-500 { color: var(--text-muted) !important; }
+        html:not(.dark) .text-slate-400 { color: #94a3b8 !important; }
+
+        /* ── Progress bars in stats ─────────────────────── */
+        html:not(.dark) .bg-slate-100 {
+            background: var(--surface-3) !important;
+        }
+
+        /* ── Branch online badge ────────────────────────── */
+        html:not(.dark) .inline-flex.items-center.gap-2.px-3 {
+            background: var(--surface) !important;
+            border-color: var(--border) !important;
+            box-shadow: var(--shadow-sm) !important;
+        }
+
+        /* ── Page content area ──────────────────────────── */
+        html:not(.dark) .flex-1.w-full.relative.h-screen {
+            background: var(--surface-2) !important;
+        }
+
     </style>
 </head>
 
@@ -1139,7 +1489,7 @@ if (isset($_GET['action'])) {
         // ── Charts ─────────────────────────────────────────────
         function initCharts() {
             Chart.defaults.color       = '#64748b';
-            Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+            Chart.defaults.font.family = "'Plus Jakarta Sans', system-ui, sans-serif";
 
             new Chart(document.getElementById('revenueChart'), {
                 type: 'line',
