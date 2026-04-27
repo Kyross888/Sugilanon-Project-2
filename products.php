@@ -16,7 +16,7 @@ if ($action === 'list') {
     $search   = $_GET['search']   ?? '';
     $branchId = $_GET['branch_id'] ?? '';
 
-    $sql    = "SELECT * FROM products WHERE is_active = 1";
+    $sql    = "SELECT * FROM products WHERE is_active = TRUE";
     $params = [];
 
     if ($cat) {
@@ -45,7 +45,7 @@ if ($action === 'list') {
 // ── GET SINGLE ───────────────────────────────────────────────
 if ($action === 'get') {
     $id   = (int)($_GET['id'] ?? 0);
-    $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ? AND is_active = 1");
+    $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ? AND is_active = TRUE");
     $stmt->execute([$id]);
     $product = $stmt->fetch();
     if (!$product) respond(['success' => false, 'error' => 'Product not found.'], 404);
@@ -169,7 +169,7 @@ if ($action === 'adjust_stock') {
 if ($action === 'delete') {
     requireAuth();
     $id = (int)($_GET['id'] ?? 0);
-    $pdo->prepare("UPDATE products SET is_active = 0 WHERE id = ?")->execute([$id]);
+    $pdo->prepare("UPDATE products SET is_active = FALSE WHERE id = ?")->execute([$id]);
     respond(['success' => true, 'message' => 'Product removed.']);
 }
 
