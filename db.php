@@ -1,13 +1,13 @@
 <?php
 // ============================================================
-//  db.php  —  Supabase PostgreSQL Connection (Direct)
+//  db.php  —  Supabase PostgreSQL Connection (Session Pooler)
 // ============================================================
 
-define('DB_HOST',    'db.luzzuclmtjfphkcjrjzc.supabase.co');
+define('DB_HOST',    'aws-1-ap-southeast-1.pooler.supabase.com');
 define('DB_NAME',    'postgres');
-define('DB_USER',    'postgres');
+define('DB_USER',    'postgres.luzzuclmtjfphkcjrjzc');
 define('DB_PASS',    'Luna@POS2026!');
-define('DB_PORT',    5432);
+define('DB_PORT',    6543);
 
 $dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";sslmode=require";
 
