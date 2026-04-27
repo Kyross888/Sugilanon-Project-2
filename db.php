@@ -26,7 +26,7 @@ try {
     header('Content-Type: application/json');
     echo json_encode([
         'success' => false,
-        'error'   => 'Cannot reach the database right now. Please try again in a moment.'
+        'error'   => 'DB Error: ' . $e->getMessage() . ''
     ]);
     exit;
 }
