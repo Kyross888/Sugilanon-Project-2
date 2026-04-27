@@ -1,13 +1,13 @@
 <?php
 // ============================================================
-//  db.php  —  Supabase PostgreSQL Connection
+//  db.php  —  Supabase PostgreSQL Connection (Direct)
 // ============================================================
 
-define('DB_HOST',    'aws-1-ap-southeast-1.pooler.supabase.com');
+define('DB_HOST',    'db.luzzuclmtjfphkcjrjzc.supabase.co');
 define('DB_NAME',    'postgres');
-define('DB_USER',    'postgres.luzzuclmtjfphkcjrjzc');
+define('DB_USER',    'postgres');
 define('DB_PASS',    'Luna@POS2026!');
-define('DB_PORT',    6543);
+define('DB_PORT',    5432);
 
 $dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";sslmode=require";
 
@@ -26,7 +26,7 @@ try {
     header('Content-Type: application/json');
     echo json_encode([
         'success' => false,
-        'error'   => 'DB Error: ' . $e->getMessage() . ''
+        'error'   => 'DB Error: ' . $e->getMessage()
     ]);
     exit;
 }
@@ -36,7 +36,6 @@ if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
 
-// Helper: send JSON and exit
 function respond(array $data, int $code = 200): void {
     http_response_code($code);
     header('Content-Type: application/json');
@@ -44,7 +43,6 @@ function respond(array $data, int $code = 200): void {
     exit;
 }
 
-// Helper: require login; returns session user array
 function requireAuth(): array {
     if (empty($_SESSION['user'])) {
         respond(['success' => false, 'error' => 'Not authenticated'], 401);
