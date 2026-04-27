@@ -95,11 +95,12 @@ if ($action === 'create') {
 
     $stmt = $pdo->prepare(
         "INSERT INTO products (name, category, price, stock, image_path, icon, branch_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?)"
+         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
     );
     $stmt->execute([$name, $category, $price, $stock, $image_path, $icon, $branch_id ?: null]);
 
-    respond(['success' => true, 'id' => $pdo->lastInsertId(), 'message' => 'Product added.']);
+    $row = $stmt->fetch();
+    respond(['success' => true, 'id' => $row['id'], 'message' => 'Product added.']);
 }
 
 // ── UPDATE ───────────────────────────────────────────────────
