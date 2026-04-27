@@ -25,8 +25,8 @@ if (isset($_GET['action'])) {
         $rev = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS revenue, COUNT(*) AS orders FROM transactions WHERE DATE(created_at) = CURRENT_DATE AND status = 'completed' $branchFilter");
         $rev->execute($branchParam);
         $row = $rev->fetch();
-        $low  = $pdo->query("SELECT COUNT(*) FROM products WHERE stock > 0 AND stock <= 10 AND is_active = 1")->fetchColumn();
-        $out  = $pdo->query("SELECT COUNT(*) FROM products WHERE stock = 0 AND is_active = 1")->fetchColumn();
+        $low  = $pdo->query("SELECT COUNT(*) FROM products WHERE stock > 0 AND stock <= 10 AND is_active = TRUE")->fetchColumn();
+        $out  = $pdo->query("SELECT COUNT(*) FROM products WHERE stock = 0 AND is_active = TRUE")->fetchColumn();
         respond(['success' => true, 'revenue_today' => (float)$row['revenue'], 'orders_today' => (int)$row['orders'], 'low_stock' => (int)$low, 'out_of_stock' => (int)$out]);
     }
 
