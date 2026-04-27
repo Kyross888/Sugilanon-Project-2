@@ -3,7 +3,7 @@
 //  db.php  —  Supabase PostgreSQL Connection
 // ============================================================
 
-define('DB_HOST',    'aws-0-us-west-2.pooler.supabase.com');
+define('DB_HOST',    'aws-1-ap-southeast-1.pooler.supabase.com');
 define('DB_NAME',    'postgres');
 define('DB_USER',    'postgres.luzzuclmtjfphkcjrjzc');
 define('DB_PASS',    'tyronekcearldexter');
