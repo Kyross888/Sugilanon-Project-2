@@ -1,31 +1,29 @@
 <?php
 // ============================================================
-//  db.php  —  Single source of truth for DB connection
+//  db.php  —  Supabase PostgreSQL Connection
 // ============================================================
 
-define('DB_HOST',    'sql12.freesqldatabase.com');
-define('DB_NAME',    'sql12823757');
-define('DB_USER',    'sql12823757');
-define('DB_PASS',    'urVZrr6kEb');
-define('DB_PORT',    3306);
-define('DB_CHARSET', 'utf8mb4');
+define('DB_HOST',    'aws-0-us-west-2.pooler.supabase.com');
+define('DB_NAME',    'postgres');
+define('DB_USER',    'postgres.luzzuclmtjfphkcjrjzc');
+define('DB_PASS',    'tyronekcearldexter');
+define('DB_PORT',    6543);
 
-$dsn = "mysql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";charset=" . DB_CHARSET;
+$dsn = "pgsql:host=" . DB_HOST . ";port=" . DB_PORT . ";dbname=" . DB_NAME . ";sslmode=require";
 
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     PDO::ATTR_EMULATE_PREPARES   => false,
-    PDO::ATTR_TIMEOUT            => 8,   // ← fail fast after 8 seconds
+    PDO::ATTR_TIMEOUT            => 8,
 ];
 
 try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-    $pdo->exec("SET time_zone = '+00:00'");
+    $pdo->exec("SET TIME ZONE 'UTC'");
 } catch (PDOException $e) {
     http_response_code(500);
     header('Content-Type: application/json');
-    // User-friendly message instead of raw PDO error
     echo json_encode([
         'success' => false,
         'error'   => 'Cannot reach the database right now. Please try again in a moment.'
