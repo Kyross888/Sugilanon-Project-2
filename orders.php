@@ -35,7 +35,7 @@ if ($action === 'place') {
             "INSERT INTO transactions
              (reference_no, branch_id, user_id, order_type, payment_method,
               subtotal, discount, coupon_discount, total, customer_id, status)
-             VALUES (?,?,?,?,?,?,?,?,?,?,'completed')"
+             VALUES (?,?,?,?,?,?,?,?,?,?,'completed') RETURNING id"
         );
         $stmt->execute([
             $ref,
@@ -49,7 +49,7 @@ if ($action === 'place') {
             $total,
             $customer_id ?: null,
         ]);
-        $txnId = $pdo->lastInsertId();
+        $txnRow = $stmt->fetch(); $txnId = $txnRow['id'];
 
         foreach ($items as $item) {
             $qty       = (int)($item['quantity'] ?? 1);
