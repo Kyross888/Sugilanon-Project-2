@@ -702,10 +702,9 @@ if ($action === 'create') {
 
     if (!$name) respond(['success' => false, 'error' => 'Name is required.'], 400);
 
-    $stmt = $pdo->prepare("INSERT INTO customers (name, email, phone, branch_id) VALUES (?,?,?,?) RETURNING id");
+    $stmt = $pdo->prepare("INSERT INTO customers (name, email, phone, branch_id) VALUES (?,?,?,?)");
     $stmt->execute([$name, $email, $phone, $branch_id ?: null]);
-    $row = $stmt->fetch();
-    respond(['success' => true, 'id' => $row['id']]);
+    respond(['success' => true, 'id' => $pdo->lastInsertId()]);
 }
 
 if ($action === 'update') {
