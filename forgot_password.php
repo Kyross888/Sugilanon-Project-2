@@ -71,12 +71,12 @@ if ($isApiRequest) {
         // Ensure password_resets table exists
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS password_resets (
-                id         INT AUTO_INCREMENT PRIMARY KEY,
+                id         SERIAL PRIMARY KEY,
                 user_id    INT NOT NULL,
                 code       VARCHAR(6) NOT NULL,
                 token      VARCHAR(64),
                 expires_at DATETIME NOT NULL,
-                used       TINYINT(1) DEFAULT 0,
+                used       BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )"
         );
