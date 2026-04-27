@@ -24,7 +24,7 @@ if (isset($_GET['action'])) {
     }
 
     if ($action === 'all_branches') {
-        $stmt = $pdo->prepare("SELECT b.id, b.name, b.address, COALESCE(SUM(t.total), 0) AS sales_today, COUNT(t.id) AS orders_today FROM branches b LEFT JOIN transactions t ON t.branch_id = b.id AND DATE(t.created_at) = ? AND t.status = 'completed' GROUP BY b.id, b.name, b.address ORDER BY b.id ASC");
+        $stmt = $pdo->prepare("SELECT b.id, b.name, b.address, COALESCE(SUM(t.total), 0) AS sales_today, COUNT(t.id) AS orders_today FROM branches b LEFT JOIN transactions t ON t.branch_id = b.id AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY b.id, b.name, b.address ORDER BY b.id ASC");
         $stmt->execute([$date]);
         respond(['success' => true, 'data' => $stmt->fetchAll()]);
     }
@@ -32,16 +32,16 @@ if (isset($_GET['action'])) {
     if ($action === 'branch') {
         $branchId = (int)($_GET['id'] ?? 0);
         if (!$branchId) respond(['success' => false, 'error' => 'Branch ID required.'], 400);
-        $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE branch_id = ? AND DATE(created_at) = ? AND status = 'completed'");
+        $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE branch_id = ? AND DATE(created_at) = ?::date AND status = 'completed'");
         $kpi->execute([$branchId, $date]);
         $kpiRow = $kpi->fetch();
-        $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, GROUP_CONCAT(CONCAT(ti.quantity, 'x ', ti.product_name) ORDER BY ti.id SEPARATOR ', ') AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.branch_id = ? AND DATE(t.created_at) = ? AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+        $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.branch_id = ? AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
         $txns->execute([$branchId, $date]);
         respond(['success' => true, 'kpi' => $kpiRow, 'transactions' => $txns->fetchAll()]);
     }
 
     if ($action === 'totals') {
-        $stmt = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS total_revenue, COUNT(*) AS total_orders FROM transactions WHERE DATE(created_at) = ? AND status = 'completed'");
+        $stmt = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS total_revenue, COUNT(*) AS total_orders FROM transactions WHERE DATE(created_at) = ?::date AND status = 'completed'");
         $stmt->execute([$date]);
         respond(['success' => true, 'data' => $stmt->fetch()]);
     }
