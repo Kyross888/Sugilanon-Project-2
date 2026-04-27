@@ -126,7 +126,7 @@ if ($isApiRequest) {
 
         $stmt = $pdo->prepare(
             "SELECT id FROM password_resets
-             WHERE user_id = ? AND code = ? AND used = 0 AND expires_at > NOW() LIMIT 1"
+             WHERE user_id = ? AND code = ? AND used = FALSE AND expires_at > NOW() LIMIT 1"
         );
         $stmt->execute([$user['id'], $code]);
         $reset = $stmt->fetch();
@@ -148,7 +148,7 @@ if ($isApiRequest) {
 
         $stmt = $pdo->prepare(
             "SELECT user_id FROM password_resets
-             WHERE token = ? AND used = 0 AND expires_at > NOW() LIMIT 1"
+             WHERE token = ? AND used = FALSE AND expires_at > NOW() LIMIT 1"
         );
         $stmt->execute([$token]);
         $reset = $stmt->fetch();
@@ -158,7 +158,7 @@ if ($isApiRequest) {
 
         $hash = password_hash($newPw, PASSWORD_BCRYPT);
         $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $reset['user_id']]);
-        $pdo->prepare("UPDATE password_resets SET used = 1 WHERE token = ?")->execute([$token]);
+        $pdo->prepare("UPDATE password_resets SET used = TRUE WHERE token = ?")->execute([$token]);
         respond(['success' => true, 'message' => 'Password reset successfully.']);
     }
 
