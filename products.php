@@ -98,14 +98,17 @@ if ($action === 'create') {
         $image_path = 'data:' . $mime . ';base64,' . base64_encode($data);
     }
 
-    $stmt = $pdo->prepare(
-        "INSERT INTO products (name, category, price, stock, image_path, icon, branch_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
-    );
-    $stmt->execute([$name, $category, $price, $stock, $image_path, $icon, $branch_id ?: null]);
-
-    $row = $stmt->fetch();
-    respond(['success' => true, 'id' => $row['id'], 'message' => 'Product added.']);
+    try {
+        $stmt = $pdo->prepare(
+            "INSERT INTO products (name, category, price, stock, image_path, icon, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
+        );
+        $stmt->execute([$name, $category, $price, $stock, $image_path, $icon, $branch_id ?: null]);
+        $row = $stmt->fetch();
+        respond(['success' => true, 'id' => $row['id'], 'message' => 'Product added.']);
+    } catch (PDOException $e) {
+        respond(['success' => false, 'error' => 'Insert failed: ' . $e->getMessage()], 500);
+    }
 }
 
 // ── UPDATE ───────────────────────────────────────────────────
