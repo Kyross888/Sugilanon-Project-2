@@ -32,10 +32,15 @@ if ($action === 'list') {
         $params[] = (int)$branchId;
     }
 
-    $sql .= " ORDER BY FIELD(category,
-        'Breakfast','Merienda','Burgers And Sandwiches',
-        'Rice Meal','Native','Dessert','Drinks'
-    ), name";
+    $sql .= " ORDER BY CASE category
+        WHEN 'Breakfast' THEN 1
+        WHEN 'Merienda' THEN 2
+        WHEN 'Burgers And Sandwiches' THEN 3
+        WHEN 'Rice Meal' THEN 4
+        WHEN 'Native' THEN 5
+        WHEN 'Dessert' THEN 6
+        WHEN 'Drinks' THEN 7
+        ELSE 8 END, name";
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
