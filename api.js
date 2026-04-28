@@ -124,6 +124,8 @@ const api = {
             fetchWithTimeout(`dashboard.php?action=order_sources${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
         topProducts: (branchId = '') =>
             fetchWithTimeout(`dashboard.php?action=top_products${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
+        peakHour: (branchId = '') =>
+            fetchWithTimeout(`dashboard.php?action=peak_hour${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
     },
 
     // ── SALES REPORT ─────────────────────────────────────────
