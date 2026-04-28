@@ -117,6 +117,11 @@ switch ($action) {
         );
         $ins->execute([$first_name, $last_name, $email, $hash, $role, $employee_id, $phone, $branch_id]);
 
+        // ── Also register with Supabase Auth so the user appears
+        //    in Supabase Dashboard → Authentication → Users ──────
+        supabaseAuthSignUp($email, $password);
+        // (failure is non-fatal — user is already saved to your DB above)
+
         respond(['success' => true, 'message' => 'Account created successfully.']);
         break;
 
