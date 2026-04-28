@@ -439,8 +439,8 @@
                 </div>
                 <div class="stat-card">
                     <small>Peak Hour</small>
-                    <h2>12:00 PM</h2>
-                    <span class="trend" style="color: var(--warning)"><i class="fa-solid fa-fire"></i> High Traffic</span>
+                    <h2 id="stat-peak-hour">--:-- --</h2>
+                    <span class="trend" id="stat-peak-traffic" style="color: var(--warning)"><i class="fa-solid fa-fire"></i> No data yet</span>
                 </div>
             </div>
 
@@ -687,7 +687,7 @@
                 revenueChart.update();
             }
 
-            // ── Top products table ──
+            // ── Category doughnut — count qty sold per category ──
             const top = await api.dashboard.topProducts();
             const tbody = document.querySelector('#itemsTable tbody');
             if (top.success && top.data.length) {
@@ -706,32 +706,61 @@
                         <td>${fmt(p.total_revenue)}</td>
                     </tr>`;
                 }).join('');
-            } else {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#718096;">No sales data for this period.</td></tr>';
-            }
 
-            // ── Category doughnut — count qty sold per category ──
-            const products = await api.products.list();
-            if (products.success && top.success && top.data.length) {
-                // Build a lookup: product name → category
-                const nameToCategory = {};
-                products.data.forEach(p => {
-                    nameToCategory[p.name] = p.category;
-                });
-
-                // Sum up qty sold per category
+                // Build category totals using products list lookup (case-insensitive)
+                const products = await api.products.list();
                 const catTotals = {};
                 CATEGORIES.forEach(c => catTotals[c.key] = 0);
-
-                top.data.forEach(p => {
-                    const cat = nameToCategory[p.name];
-                    if (cat && catTotals[cat] !== undefined) {
-                        catTotals[cat] += parseInt(p.total_qty);
-                    }
-                });
-
-                categoryChart.data.datasets[0].data = CATEGORIES.map(c => catTotals[c.key]);
+                if (products.success) {
+                    const nameToCategory = {};
+                    products.data.forEach(p => {
+                        nameToCategory[p.name.trim().toLowerCase()] = p.category;
+                    });
+                    top.data.forEach(p => {
+                        const cat = nameToCategory[p.name.trim().toLowerCase()];
+                        if (cat && catTotals[cat] !== undefined) {
+                            catTotals[cat] += parseInt(p.total_qty);
+                        }
+                    });
+                }
+                const totalsArr = CATEGORIES.map(c => catTotals[c.key]);
+                const hasData = totalsArr.some(v => v > 0);
+                categoryChart.data.datasets[0].data = hasData ? totalsArr : CATEGORIES.map(() => 1);
+                categoryChart.data.datasets[0].backgroundColor = hasData
+                    ? CATEGORIES.map(c => c.color)
+                    : CATEGORIES.map(() => '#e2e8f0');
                 categoryChart.update();
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#718096;">No sales data for this period.</td></tr>';
+                // Show empty grey donut when no data
+                categoryChart.data.datasets[0].data = CATEGORIES.map(() => 1);
+                categoryChart.data.datasets[0].backgroundColor = CATEGORIES.map(() => '#e2e8f0');
+                categoryChart.update();
+            }
+
+            // ── Peak Hour — calculate from today's transactions ──
+            if (report.success && report.transactions && report.transactions.length) {
+                const hourCounts = {};
+                report.transactions.forEach(t => {
+                    const hrStr = new Date(t.created_at + ' UTC').toLocaleString('en-US', {
+                        timeZone: 'Asia/Manila', hour: 'numeric', hour12: false
+                    });
+                    const hr = parseInt(hrStr);
+                    hourCounts[hr] = (hourCounts[hr] || 0) + 1;
+                });
+                const peakEntry = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
+                if (peakEntry) {
+                    const hr24 = parseInt(peakEntry[0]);
+                    const ampm = hr24 >= 12 ? 'PM' : 'AM';
+                    const hr12 = hr24 % 12 === 0 ? 12 : hr24 % 12;
+                    document.getElementById('stat-peak-hour').innerText = `${hr12}:00 ${ampm}`;
+                    document.getElementById('stat-peak-traffic').innerHTML =
+                        `<i class="fa-solid fa-fire"></i> ${peakEntry[1]} order${peakEntry[1] !== 1 ? 's' : ''} that hour`;
+                }
+            } else {
+                document.getElementById('stat-peak-hour').innerText = 'No orders';
+                document.getElementById('stat-peak-traffic').innerHTML =
+                    `<i class="fa-solid fa-clock"></i> No data today`;
             }
         }
 
