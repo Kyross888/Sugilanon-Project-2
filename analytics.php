@@ -594,20 +594,42 @@
             await loadAnalyticsData(selectedDate, selectedDate, 'history');
         }
 
-        // ── Core data loader ──
-    async function loadAnalyticsData(fromDate, toDate, range) {
-    const isToday = (range === 'today');
+      // ── Core data loader ──
+        async function loadAnalyticsData(fromDate, toDate, range) {
+            const isToday = (range === 'today');
 
-    let totalRevenue = 0;
-    let totalOrders  = 0;
-    let report       = null;
+            // salesReport is the single source of truth for all ranges
+            const report = await api.salesReport.get({ date_from: fromDate, date_to: toDate });
 
-    if (isToday) {
-        // Use dashboard KPIs for today — it already works correctly
-        const kpis = await api.dashboard.kpis();
-        if (kpis && kpis.success) {
-            totalRevenue = parseFloat(kpis.today_revenue || kpis.revenue || kpis.data?.today_revenue || 0);
-            totalOrders  = parseInt(kpis.today_orders  || kpis.orders  || kpis.data?.today_orders  || 0);
+            let totalRevenue = 0;
+            let totalOrders  = 0;
+
+            if (report && report.success) {
+                totalRevenue = parseFloat(report.summary?.total_revenue) || 0;
+                totalOrders  = parseInt(report.summary?.total_orders)    || 0;
+            }
+
+            // KPI cards
+            document.getElementById('stat-sales').innerText  = fmt(totalRevenue);
+            document.getElementById('stat-orders').innerText = totalOrders;
+
+            const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+            document.getElementById('stat-avg-order').innerText       = fmt(avgOrderValue);
+            document.getElementById('stat-avg-order-label').innerText =
+                totalOrders > 0 ? `÷ ${totalOrders} orders` : 'no orders yet';
+
+            // Revenue chart
+            if (isToday) {
+                await buildTodayHourlyChart(report);
+            } else {
+                await buildMultiDayChart(fromDate, toDate, range, report);
+            }
+
+            // Top items table + category doughnut
+            await buildTopItemsTable();
+
+            // Peak hour
+            buildPeakHour(report);
         }
 
         // Still get transactions for chart + peak hour via salesReport
