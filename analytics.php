@@ -485,291 +485,305 @@
 
     <script src="js/api.js"></script>
     <script>
-        let revenueChart, categoryChart;
+       // ── REPLACE the entire <script> block in analytics.php with this ──
+// (everything between the two <script> tags, excluding the pwa.js tag)
 
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
+let revenueChart, categoryChart;
+
+function toggleSidebar() {
+    document.getElementById('sidebar').classList.toggle('collapsed');
+}
+
+function showAllItems() {
+    document.getElementById('fullItemsTable').innerHTML = document.getElementById('itemsTable').innerHTML;
+    document.getElementById('allItemsModal').style.display = 'flex';
+}
+
+function closeModal() {
+    document.getElementById('allItemsModal').style.display = 'none';
+}
+
+// ── All 7 real categories matching the DB ──────────────
+const CATEGORIES = [
+    { key: 'Breakfast',             label: 'Breakfast',     color: '#5a67d8' },
+    { key: 'Merienda',              label: 'Merienda',      color: '#4fd1c5' },
+    { key: 'Burgers And Sandwiches',label: 'Burgers & Sand.',color: '#f6ad55' },
+    { key: 'Rice Meal',             label: 'Rice Meal',     color: '#fc8181' },
+    { key: 'Native',                label: 'Native',        color: '#68d391' },
+    { key: 'Dessert',               label: 'Dessert',       color: '#f687b3' },
+    { key: 'Drinks',                label: 'Drinks',        color: '#76e4f7' },
+];
+
+// ── Helper: get today's date string in local time (PH timezone) ──
+function getTodayLocal() {
+    const now = new Date();
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    const d = String(now.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
+// ── Helper: get date N days ago ──
+function getDaysAgo(n) {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${day}`;
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    await requireLogin();
+
+    // Revenue Line Chart
+    const revCtx = document.getElementById('revenueChart').getContext('2d');
+    revenueChart = new Chart(revCtx, {
+        type: 'line',
+        data: { labels: [], datasets: [{ label: 'Revenue (₱)', data: [], borderColor: '#5a67d8', tension: 0.4, fill: true, backgroundColor: 'rgba(90, 103, 216, 0.1)', borderWidth: 2, pointBackgroundColor: '#5a67d8' }] },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { beginAtZero: true, grid: { color: '#f0f0f0' } },
+                x: { grid: { display: false } }
+            }
         }
+    });
 
-        function showAllItems() {
-            document.getElementById('fullItemsTable').innerHTML = document.getElementById('itemsTable').innerHTML;
-            document.getElementById('allItemsModal').style.display = 'flex';
+    // Category Doughnut Chart
+    const catCtx = document.getElementById('categoryChart').getContext('2d');
+    categoryChart = new Chart(catCtx, {
+        type: 'doughnut',
+        data: {
+            labels: CATEGORIES.map(c => c.label),
+            datasets: [{ data: CATEGORIES.map(() => 0), backgroundColor: CATEGORIES.map(c => c.color), borderWidth: 0, hoverOffset: 8 }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false, cutout: '65%',
+            plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, padding: 8, font: { size: 11 } } } }
         }
+    });
 
-        function closeModal() {
-            document.getElementById('allItemsModal').style.display = 'none';
+    await updateAnalytics();
+});
+
+// ── Today / 7 Days / This Month dropdown ──────────────
+async function updateAnalytics() {
+    const range = document.getElementById('timeFilter').value;
+    document.getElementById('tableHeading').innerText = 'Top Performing Items';
+    document.getElementById('historyDate').value = '';
+
+    const today = getTodayLocal();
+    let fromDate = today;
+
+    if (range === '7days') {
+        fromDate = getDaysAgo(6);
+    } else if (range === 'month') {
+        const now = new Date();
+        fromDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+    }
+    // 'today' => fromDate === today === toDate
+
+    await loadAnalyticsData(fromDate, today, range);
+}
+
+// ── Date picker (history) ──────────────────────────────
+async function filterByDate() {
+    const selectedDate = document.getElementById('historyDate').value;
+    if (!selectedDate) return;
+    document.getElementById('tableHeading').innerText = `History for ${selectedDate}`;
+    await loadAnalyticsData(selectedDate, selectedDate, 'history');
+}
+
+// ── Core: fetch everything from real API ──────────────
+async function loadAnalyticsData(fromDate, toDate, range) {
+    const isToday = (range === 'today');
+
+    // ── KPI cards ──
+    // For "today", also try the dashboard kpis endpoint which reads today's live data
+    let totalRevenue = 0, totalOrders = 0;
+
+    if (isToday) {
+        // Try dashboard KPIs first (real-time today data)
+        try {
+            const kpis = await api.dashboard.kpis();
+            if (kpis && kpis.success) {
+                totalRevenue = parseFloat(kpis.today_revenue || kpis.revenue || 0);
+                totalOrders  = parseInt(kpis.today_orders  || kpis.orders  || 0);
+            }
+        } catch (e) { /* fall through to salesReport */ }
+    }
+
+    // Always also fetch salesReport for transactions (needed for peak hour)
+    // For today, use date_from=today&date_to=today
+    const report = await api.salesReport.get({ date_from: fromDate, date_to: toDate });
+
+    if (report && report.success) {
+        // If KPI endpoint didn't give us data (non-today or failed), use salesReport
+        if (!isToday || totalRevenue === 0) {
+            totalRevenue = parseFloat(report.summary?.total_revenue) || 0;
+            totalOrders  = parseInt(report.summary?.total_orders)   || 0;
         }
+        // For today, prefer salesReport if it has more data
+        if (isToday && totalRevenue === 0) {
+            totalRevenue = parseFloat(report.summary?.total_revenue) || 0;
+            totalOrders  = parseInt(report.summary?.total_orders)   || 0;
+        }
+    }
 
-        // ── All 7 real categories matching the DB ──────────────
-        const CATEGORIES = [{
-            key: 'Breakfast',
-            label: 'Breakfast',
-            color: '#5a67d8'
-        }, {
-            key: 'Merienda',
-            label: 'Merienda',
-            color: '#4fd1c5'
-        }, {
-            key: 'Burgers And Sandwiches',
-            label: 'Burgers & Sand.',
-            color: '#f6ad55'
-        }, {
-            key: 'Rice Meal',
-            label: 'Rice Meal',
-            color: '#fc8181'
-        }, {
-            key: 'Native',
-            label: 'Native',
-            color: '#68d391'
-        }, {
-            key: 'Dessert',
-            label: 'Dessert',
-            color: '#f687b3'
-        }, {
-            key: 'Drinks',
-            label: 'Drinks',
-            color: '#76e4f7'
-        }, ];
+    document.getElementById('stat-sales').innerText  = fmt(totalRevenue);
+    document.getElementById('stat-orders').innerText = totalOrders;
 
-        document.addEventListener('DOMContentLoaded', async() => {
-            await requireLogin();
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    document.getElementById('stat-avg-order').innerText       = fmt(avgOrderValue);
+    document.getElementById('stat-avg-order-label').innerText = totalOrders > 0 ? `÷ ${totalOrders} orders` : 'no orders yet';
 
-            // Revenue Line Chart
-            const revCtx = document.getElementById('revenueChart').getContext('2d');
-            revenueChart = new Chart(revCtx, {
-                type: 'line',
-                data: {
-                    labels: [],
-                    datasets: [{
-                        label: 'Revenue (₱)',
-                        data: [],
-                        borderColor: '#5a67d8',
-                        tension: 0.4,
-                        fill: true,
-                        backgroundColor: 'rgba(90, 103, 216, 0.1)',
-                        borderWidth: 2,
-                        pointBackgroundColor: '#5a67d8',
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: {
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: {
-                                color: '#f0f0f0'
-                            }
-                        },
-                        x: {
-                            grid: {
-                                display: false
-                            }
-                        }
-                    }
-                }
+    // ── Revenue trend line chart ──
+    if (isToday) {
+        // For today, build an hourly chart from the transactions
+        await buildTodayHourlyChart(report);
+    } else {
+        // For multi-day ranges, use the trend endpoint
+        const trend = await api.dashboard.revenueTrend();
+        if (trend && trend.success && trend.data && trend.data.length) {
+            revenueChart.data.labels = trend.data.map(d => {
+                const dt = new Date(d.day + 'T00:00:00');
+                return dt.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric' });
             });
+            revenueChart.data.datasets[0].data = trend.data.map(d => parseFloat(d.revenue));
+            revenueChart.update();
+        }
+        // Update chart title
+        const titles = { '7days': 'Revenue — Last 7 Days', 'month': 'Revenue — This Month', 'history': `Revenue — ${fromDate}` };
+        document.getElementById('chart-title').childNodes[0].textContent = titles[range] || 'Revenue Trend';
+    }
 
-            // Category Doughnut Chart — all 7 real categories
-            const catCtx = document.getElementById('categoryChart').getContext('2d');
-            categoryChart = new Chart(catCtx, {
-                type: 'doughnut',
-                data: {
-                    labels: CATEGORIES.map(c => c.label),
-                    datasets: [{
-                        data: CATEGORIES.map(() => 0),
-                        backgroundColor: CATEGORIES.map(c => c.color),
-                        borderWidth: 0,
-                        hoverOffset: 8,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '65%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                boxWidth: 12,
-                                padding: 8,
-                                font: {
-                                    size: 11
-                                }
-                            }
-                        }
-                    }
-                }
+    // ── Top Items table + category doughnut ──
+    const top = await api.dashboard.topProducts();
+    const tbody = document.querySelector('#itemsTable tbody');
+
+    if (top && top.success && top.data && top.data.length) {
+        const maxQty = Math.max(...top.data.map(p => parseInt(p.total_qty)));
+        tbody.innerHTML = top.data.map(p => {
+            const pct = Math.round((parseInt(p.total_qty) / maxQty) * 100);
+            return `<tr>
+                <td class="item-name">${p.name}</td>
+                <td>${p.total_qty}</td>
+                <td>
+                    <div style="width:100px;height:6px;background:#edf2f7;border-radius:3px;">
+                        <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:3px;"></div>
+                    </div>
+                </td>
+                <td><span class="pill pill-in">● In Stock</span></td>
+                <td>${fmt(p.total_revenue)}</td>
+            </tr>`;
+        }).join('');
+
+        // Build category totals
+        const products = await api.products.list();
+        const catTotals = {};
+        CATEGORIES.forEach(c => catTotals[c.key] = 0);
+
+        if (products && products.success) {
+            const nameToCategory = {};
+            products.data.forEach(p => { nameToCategory[p.name.trim().toLowerCase()] = p.category; });
+            top.data.forEach(p => {
+                const cat = nameToCategory[p.name.trim().toLowerCase()];
+                if (cat && catTotals[cat] !== undefined) catTotals[cat] += parseInt(p.total_qty);
             });
+        }
 
-            await updateAnalytics();
+        const totalsArr = CATEGORIES.map(c => catTotals[c.key]);
+        const hasData   = totalsArr.some(v => v > 0);
+        categoryChart.data.datasets[0].data            = hasData ? totalsArr : CATEGORIES.map(() => 1);
+        categoryChart.data.datasets[0].backgroundColor = hasData ? CATEGORIES.map(c => c.color) : CATEGORIES.map(() => '#e2e8f0');
+        categoryChart.update();
+
+    } else {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#718096;">No sales data for this period.</td></tr>';
+        categoryChart.data.datasets[0].data            = CATEGORIES.map(() => 1);
+        categoryChart.data.datasets[0].backgroundColor = CATEGORIES.map(() => '#e2e8f0');
+        categoryChart.update();
+    }
+
+    // ── Peak Hour ──
+    buildPeakHour(report);
+}
+
+// ── Build hourly chart for today ──────────────────────
+async function buildTodayHourlyChart(report) {
+    document.getElementById('chart-title').childNodes[0].textContent = "Revenue — Today (by hour)";
+
+    const hourlyRevenue = {};
+    for (let h = 0; h < 24; h++) hourlyRevenue[h] = 0;
+
+    if (report && report.success && report.transactions && report.transactions.length) {
+        report.transactions.forEach(t => {
+            // Parse as UTC then convert to PH time
+            const dt = new Date((t.created_at + ' UTC').replace(' UTC', 'Z'));
+            const hrStr = dt.toLocaleString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', hour12: false });
+            const hr = parseInt(hrStr) % 24;
+            hourlyRevenue[hr] = (hourlyRevenue[hr] || 0) + parseFloat(t.total_amount || t.total || 0);
+        });
+    }
+
+    // Only show hours 6am–11pm to avoid empty early-morning clutter
+    const hours = Array.from({ length: 18 }, (_, i) => i + 6);
+    const labels = hours.map(h => {
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        const h12  = h % 12 === 0 ? 12 : h % 12;
+        return `${h12}${ampm}`;
+    });
+    const data = hours.map(h => parseFloat((hourlyRevenue[h] || 0).toFixed(2)));
+
+    revenueChart.data.labels = labels;
+    revenueChart.data.datasets[0].data = data;
+    revenueChart.update();
+}
+
+// ── Peak Hour calculation ──────────────────────────────
+function buildPeakHour(report) {
+    if (report && report.success && report.transactions && report.transactions.length) {
+        const hourCounts = {};
+        report.transactions.forEach(t => {
+            const dt    = new Date((t.created_at + ' UTC').replace(' UTC', 'Z'));
+            const hrStr = dt.toLocaleString('en-US', { timeZone: 'Asia/Manila', hour: 'numeric', hour12: false });
+            const hr    = parseInt(hrStr) % 24;
+            hourCounts[hr] = (hourCounts[hr] || 0) + 1;
         });
 
-        // ── Today / 7 Days / This Month dropdown ──────────────
-        async function updateAnalytics() {
-            const range = document.getElementById('timeFilter').value;
-            document.getElementById('tableHeading').innerText = 'Top Performing Items';
-            document.getElementById('historyDate').value = '';
-
-            const today = new Date();
-            const toDate = today.toISOString().split('T')[0];
-            let fromDate = toDate;
-            if (range === '7days') {
-                const d = new Date(today);
-                d.setDate(d.getDate() - 6);
-                fromDate = d.toISOString().split('T')[0];
-            } else if (range === 'month') {
-                const d = new Date(today);
-                d.setDate(1);
-                fromDate = d.toISOString().split('T')[0];
-            }
-            await loadAnalyticsData(fromDate, toDate);
+        const peakEntry = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
+        if (peakEntry) {
+            const hr24 = parseInt(peakEntry[0]);
+            const ampm = hr24 >= 12 ? 'PM' : 'AM';
+            const hr12 = hr24 % 12 === 0 ? 12 : hr24 % 12;
+            document.getElementById('stat-peak-hour').innerText        = `${hr12}:00 ${ampm}`;
+            document.getElementById('stat-peak-traffic').innerHTML     =
+                `<i class="fa-solid fa-fire"></i> ${peakEntry[1]} order${peakEntry[1] !== 1 ? 's' : ''} that hour`;
+            return;
         }
+    }
+    document.getElementById('stat-peak-hour').innerText    = 'No orders';
+    document.getElementById('stat-peak-traffic').innerHTML = `<i class="fa-solid fa-clock"></i> No data yet`;
+}
 
-        // ── Date picker ───────────────────────────────────────
-        async function filterByDate() {
-            const selectedDate = document.getElementById('historyDate').value;
-            if (!selectedDate) return;
-            document.getElementById('tableHeading').innerText = `History for ${selectedDate}`;
-            await loadAnalyticsData(selectedDate, selectedDate);
+// ── CSV Export ────────────────────────────────────────
+function downloadCSV() {
+    let csv = "Item Name,Units Sold,Stock Status,Total Revenue\n";
+    document.querySelectorAll("#itemsTable tbody tr").forEach(row => {
+        const cols = row.querySelectorAll("td");
+        if (cols.length >= 5) {
+            csv += `"${cols[0].innerText}",${cols[1].innerText},"${cols[3].innerText.replace('● ','')}","${cols[4].innerText}"\n`;
         }
-
-        // ── Core: fetch everything from real API ──────────────
-        async function loadAnalyticsData(fromDate, toDate) {
-            // ── KPI cards ──
-            const report = await api.salesReport.get({
-                date_from: fromDate,
-                date_to: toDate
-            });
-            if (report.success) {
-                const totalRevenue = parseFloat(report.summary.total_revenue) || 0;
-                const totalOrders  = parseInt(report.summary.total_orders)   || 0;
-
-                document.getElementById('stat-sales').innerText  = fmt(totalRevenue);
-                document.getElementById('stat-orders').innerText = totalOrders;
-
-                // ── Avg. Order Value = total revenue ÷ total orders ──
-                const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-                document.getElementById('stat-avg-order').innerText = fmt(avgOrderValue);
-                document.getElementById('stat-avg-order-label').innerText =
-                    totalOrders > 0 ? `÷ ${totalOrders} orders` : 'no orders yet';
-            }
-
-            // ── Revenue trend line chart ──
-            const trend = await api.dashboard.revenueTrend();
-            if (trend.success && trend.data.length) {
-                revenueChart.data.labels = trend.data.map(d => {
-                    const dt = new Date(d.day);
-                    return dt.toLocaleDateString('en-PH', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric'
-                    });
-                });
-                revenueChart.data.datasets[0].data = trend.data.map(d => parseFloat(d.revenue));
-                revenueChart.update();
-            }
-
-            // ── Category doughnut — count qty sold per category ──
-            const top = await api.dashboard.topProducts();
-            const tbody = document.querySelector('#itemsTable tbody');
-            if (top.success && top.data.length) {
-                const maxQty = Math.max(...top.data.map(p => parseInt(p.total_qty)));
-                tbody.innerHTML = top.data.map(p => {
-                    const pct = Math.round((p.total_qty / maxQty) * 100);
-                    return `<tr>
-                        <td class="item-name">${p.name}</td>
-                        <td>${p.total_qty}</td>
-                        <td>
-                            <div style="width:100px;height:6px;background:#edf2f7;border-radius:3px;">
-                                <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:3px;"></div>
-                            </div>
-                        </td>
-                        <td><span class="pill pill-in">● In Stock</span></td>
-                        <td>${fmt(p.total_revenue)}</td>
-                    </tr>`;
-                }).join('');
-
-                // Build category totals using products list lookup (case-insensitive)
-                const products = await api.products.list();
-                const catTotals = {};
-                CATEGORIES.forEach(c => catTotals[c.key] = 0);
-                if (products.success) {
-                    const nameToCategory = {};
-                    products.data.forEach(p => {
-                        nameToCategory[p.name.trim().toLowerCase()] = p.category;
-                    });
-                    top.data.forEach(p => {
-                        const cat = nameToCategory[p.name.trim().toLowerCase()];
-                        if (cat && catTotals[cat] !== undefined) {
-                            catTotals[cat] += parseInt(p.total_qty);
-                        }
-                    });
-                }
-                const totalsArr = CATEGORIES.map(c => catTotals[c.key]);
-                const hasData = totalsArr.some(v => v > 0);
-                categoryChart.data.datasets[0].data = hasData ? totalsArr : CATEGORIES.map(() => 1);
-                categoryChart.data.datasets[0].backgroundColor = hasData
-                    ? CATEGORIES.map(c => c.color)
-                    : CATEGORIES.map(() => '#e2e8f0');
-                categoryChart.update();
-            } else {
-                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#718096;">No sales data for this period.</td></tr>';
-                // Show empty grey donut when no data
-                categoryChart.data.datasets[0].data = CATEGORIES.map(() => 1);
-                categoryChart.data.datasets[0].backgroundColor = CATEGORIES.map(() => '#e2e8f0');
-                categoryChart.update();
-            }
-
-            // ── Peak Hour — calculate from today's transactions ──
-            if (report.success && report.transactions && report.transactions.length) {
-                const hourCounts = {};
-                report.transactions.forEach(t => {
-                    const hrStr = new Date(t.created_at + ' UTC').toLocaleString('en-US', {
-                        timeZone: 'Asia/Manila', hour: 'numeric', hour12: false
-                    });
-                    const hr = parseInt(hrStr);
-                    hourCounts[hr] = (hourCounts[hr] || 0) + 1;
-                });
-                const peakEntry = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
-                if (peakEntry) {
-                    const hr24 = parseInt(peakEntry[0]);
-                    const ampm = hr24 >= 12 ? 'PM' : 'AM';
-                    const hr12 = hr24 % 12 === 0 ? 12 : hr24 % 12;
-                    document.getElementById('stat-peak-hour').innerText = `${hr12}:00 ${ampm}`;
-                    document.getElementById('stat-peak-traffic').innerHTML =
-                        `<i class="fa-solid fa-fire"></i> ${peakEntry[1]} order${peakEntry[1] !== 1 ? 's' : ''} that hour`;
-                }
-            } else {
-                document.getElementById('stat-peak-hour').innerText = 'No orders';
-                document.getElementById('stat-peak-traffic').innerHTML =
-                    `<i class="fa-solid fa-clock"></i> No data today`;
-            }
-        }
-
-        // ── CSV Export ────────────────────────────────────────
-        function downloadCSV() {
-            let csv = "Item Name,Units Sold,Stock Status,Total Revenue\n";
-            document.querySelectorAll("#itemsTable tbody tr").forEach(row => {
-                const cols = row.querySelectorAll("td");
-                if (cols.length >= 5) {
-                    csv += `"${cols[0].innerText}",${cols[1].innerText},"${cols[3].innerText.replace('● ','')}","${cols[4].innerText}"\n`;
-                }
-            });
-            const blob = new Blob([csv], {
-                type: 'text/csv'
-            });
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'analytics.csv';
-            a.click();
-        }
+    });
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = window.URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url;
+    a.download = 'analytics.csv';
+    a.click();
+}
     </script>
 
     <!-- PWA Registration -->
