@@ -595,10 +595,9 @@
         }
 
         // ── Core data loader ──
-        async function loadAnalyticsData(fromDate, toDate, range) {
+      async function loadAnalyticsData(fromDate, toDate, range) {
             const isToday = (range === 'today');
 
-            // salesReport is the single source of truth for all ranges
             const report = await api.salesReport.get({ date_from: fromDate, date_to: toDate });
 
             let totalRevenue = 0;
@@ -607,6 +606,16 @@
             if (report && report.success) {
                 totalRevenue = parseFloat(report.summary?.total_revenue) || 0;
                 totalOrders  = parseInt(report.summary?.total_orders)    || 0;
+
+                // Fallback: recount from raw transactions if summary is empty
+                if ((totalRevenue === 0 || totalOrders === 0) && report.transactions?.length) {
+                    totalRevenue = 0;
+                    totalOrders  = 0;
+                    report.transactions.forEach(t => {
+                        totalRevenue += parseFloat(t.total_amount || t.total || 0);
+                        totalOrders++;
+                    });
+                }
             }
 
             // KPI cards
