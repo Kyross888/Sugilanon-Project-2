@@ -129,9 +129,9 @@ const api = {
     },
 
 // ── SALES REPORT ─────────────────────────────────────────
-    salesReport: {
+  salesReport: {
         get: (params = {}) => {
-            const qs = new URLSearchParams({ action: 'get', ...params }).toString();
+            const qs = new URLSearchParams(params).toString();
             return fetchWithTimeout(`salesreport.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
         },
     },
