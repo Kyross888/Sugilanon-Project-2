@@ -128,14 +128,13 @@ const api = {
             fetchWithTimeout(`dashboard.php?action=peak_hour${branchId ? '&branch_id=' + branchId : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
     },
 
-    // ── SALES REPORT ─────────────────────────────────────────
+// ── SALES REPORT ─────────────────────────────────────────
     salesReport: {
         get: (params = {}) => {
-            const qs = new URLSearchParams(params).toString();
+            const qs = new URLSearchParams({ action: 'get', ...params }).toString();
             return fetchWithTimeout(`salesreport.php?${qs}`, { credentials: 'same-origin' }).then(r => r.json());
         },
     },
-
     // ── CUSTOMERS ────────────────────────────────────────────
     customers: {
         list: (search = '') =>
