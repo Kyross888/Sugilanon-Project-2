@@ -595,17 +595,66 @@
         }
 
         // ── Core data loader ──
-      async function loadAnalyticsData(fromDate, toDate, range) {
-            const isToday = (range === 'today');
+    async function loadAnalyticsData(fromDate, toDate, range) {
+    const isToday = (range === 'today');
 
-            const report = await api.salesReport.get({ date_from: fromDate, date_to: toDate });
+    let totalRevenue = 0;
+    let totalOrders  = 0;
+    let report       = null;
 
-            let totalRevenue = 0;
-            let totalOrders  = 0;
+    if (isToday) {
+        // Use dashboard KPIs for today — it already works correctly
+        const kpis = await api.dashboard.kpis();
+        if (kpis && kpis.success) {
+            totalRevenue = parseFloat(kpis.today_revenue || kpis.revenue || kpis.data?.today_revenue || 0);
+            totalOrders  = parseInt(kpis.today_orders  || kpis.orders  || kpis.data?.today_orders  || 0);
+        }
 
-            if (report && report.success) {
-                totalRevenue = parseFloat(report.summary?.total_revenue) || 0;
-                totalOrders  = parseInt(report.summary?.total_orders)    || 0;
+        // Still get transactions for chart + peak hour via salesReport
+        report = await api.salesReport.get({ date_from: fromDate, date_to: toDate });
+
+        // If KPIs gave 0, fallback to counting transactions directly
+        if (totalRevenue === 0 && report?.success && report?.transactions?.length) {
+            report.transactions.forEach(t => {
+                totalRevenue += parseFloat(t.total_amount || t.total || 0);
+                totalOrders++;
+            });
+        }
+
+    } else {
+        report = await api.salesReport.get({ date_from: fromDate, date_to: toDate });
+        if (report && report.success) {
+            totalRevenue = parseFloat(report.summary?.total_revenue) || 0;
+            totalOrders  = parseInt(report.summary?.total_orders)    || 0;
+
+            if ((totalRevenue === 0 || totalOrders === 0) && report.transactions?.length) {
+                totalRevenue = 0;
+                totalOrders  = 0;
+                report.transactions.forEach(t => {
+                    totalRevenue += parseFloat(t.total_amount || t.total || 0);
+                    totalOrders++;
+                });
+            }
+        }
+    }
+
+    document.getElementById('stat-sales').innerText  = fmt(totalRevenue);
+    document.getElementById('stat-orders').innerText = totalOrders;
+
+    const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+    document.getElementById('stat-avg-order').innerText       = fmt(avgOrderValue);
+    document.getElementById('stat-avg-order-label').innerText =
+        totalOrders > 0 ? `÷ ${totalOrders} orders` : 'no orders yet';
+
+    if (isToday) {
+        await buildTodayHourlyChart(report);
+    } else {
+        await buildMultiDayChart(fromDate, toDate, range, report);
+    }
+
+    await buildTopItemsTable();
+    buildPeakHour(report);
+}
 
                 // Fallback: recount from raw transactions if summary is empty
                 if ((totalRevenue === 0 || totalOrders === 0) && report.transactions?.length) {
