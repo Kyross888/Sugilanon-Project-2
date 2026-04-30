@@ -640,40 +640,136 @@
         }
 
         // ── Core: fetch everything from real API ──────────────
-        async function loadAnalyticsData(fromDate, toDate) {
-            // ── KPI cards ──
-            const report = await api.salesReport.get({
-                date_from: fromDate,
-                date_to: toDate
+     // ── Core: fetch everything from real API ──────────────
+async function loadAnalyticsData(fromDate, toDate) {
+    // ── KPI cards ──
+    const report = await api.salesReport.get({
+        date_from: fromDate,
+        date_to: toDate
+    });
+    if (report.success) {
+        const totalRevenue = parseFloat(report.summary.total_revenue) || 0;
+        const totalOrders  = parseInt(report.summary.total_orders)   || 0;
+
+        document.getElementById('stat-sales').innerText  = fmt(totalRevenue);
+        document.getElementById('stat-orders').innerText = totalOrders;
+
+        const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
+        document.getElementById('stat-avg-order').innerText = fmt(avgOrderValue);
+        document.getElementById('stat-avg-order-label').innerText =
+            totalOrders > 0 ? `÷ ${totalOrders} orders` : 'no orders yet';
+    }
+
+    // ── Revenue trend line chart ──
+    const trend = await api.dashboard.revenueTrend();
+    if (trend.success && trend.data.length) {
+        revenueChart.data.labels = trend.data.map(d => {
+            const dt = new Date(d.day);
+            return dt.toLocaleDateString('en-PH', {
+                weekday: 'short', month: 'short', day: 'numeric'
             });
-            if (report.success) {
-                const totalRevenue = parseFloat(report.summary.total_revenue) || 0;
-                const totalOrders  = parseInt(report.summary.total_orders)   || 0;
+        });
+        revenueChart.data.datasets[0].data = trend.data.map(d => parseFloat(d.revenue));
+        revenueChart.update();
+    }
 
-                document.getElementById('stat-sales').innerText  = fmt(totalRevenue);
-                document.getElementById('stat-orders').innerText = totalOrders;
+    // ── Top items table — built from date-filtered transactions ──
+    const tbody = document.querySelector('#itemsTable tbody');
 
-                // ── Avg. Order Value = total revenue ÷ total orders ──
-                const avgOrderValue = totalOrders > 0 ? totalRevenue / totalOrders : 0;
-                document.getElementById('stat-avg-order').innerText = fmt(avgOrderValue);
-                document.getElementById('stat-avg-order-label').innerText =
-                    totalOrders > 0 ? `÷ ${totalOrders} orders` : 'no orders yet';
-            }
+    if (report.success && report.transactions && report.transactions.length) {
+        // Aggregate qty + revenue per product from the filtered transactions
+        const productMap = {};
+        report.transactions.forEach(t => {
+            if (!t.items) return;
+            t.items.forEach(item => {
+                const name = item.product_name || item.name;
+                if (!name) return;
+                if (!productMap[name]) productMap[name] = { name, qty: 0, revenue: 0 };
+                productMap[name].qty     += parseInt(item.quantity)   || 0;
+                productMap[name].revenue += parseFloat(item.line_total) || 0;
+            });
+        });
 
-            // ── Revenue trend line chart ──
-            const trend = await api.dashboard.revenueTrend();
-            if (trend.success && trend.data.length) {
-                revenueChart.data.labels = trend.data.map(d => {
-                    const dt = new Date(d.day);
-                    return dt.toLocaleDateString('en-PH', {
-                        weekday: 'short',
-                        month: 'short',
-                        day: 'numeric'
-                    });
+        const topProducts = Object.values(productMap)
+            .sort((a, b) => b.qty - a.qty)
+            .slice(0, 10);
+
+        if (topProducts.length) {
+            const maxQty = topProducts[0].qty;
+            tbody.innerHTML = topProducts.map(p => {
+                const pct = Math.round((p.qty / maxQty) * 100);
+                return `<tr>
+                    <td class="item-name">${p.name}</td>
+                    <td>${p.qty}</td>
+                    <td>
+                        <div style="width:100px;height:6px;background:#edf2f7;border-radius:3px;">
+                            <div style="width:${pct}%;height:100%;background:var(--primary);border-radius:3px;"></div>
+                        </div>
+                    </td>
+                    <td><span class="pill pill-in">● In Stock</span></td>
+                    <td>${fmt(p.revenue)}</td>
+                </tr>`;
+            }).join('');
+
+            // ── Category doughnut from same transaction data ──
+            const products = await api.products.list();
+            const catTotals = {};
+            CATEGORIES.forEach(c => catTotals[c.key] = 0);
+            if (products.success) {
+                const nameToCategory = {};
+                products.data.forEach(p => {
+                    nameToCategory[p.name.trim().toLowerCase()] = p.category;
                 });
-                revenueChart.data.datasets[0].data = trend.data.map(d => parseFloat(d.revenue));
-                revenueChart.update();
+                topProducts.forEach(p => {
+                    const cat = nameToCategory[p.name.trim().toLowerCase()];
+                    if (cat && catTotals[cat] !== undefined) {
+                        catTotals[cat] += p.qty;
+                    }
+                });
             }
+            const totalsArr = CATEGORIES.map(c => catTotals[c.key]);
+            const hasData = totalsArr.some(v => v > 0);
+            categoryChart.data.datasets[0].data = hasData ? totalsArr : CATEGORIES.map(() => 1);
+            categoryChart.data.datasets[0].backgroundColor = hasData
+                ? CATEGORIES.map(c => c.color)
+                : CATEGORIES.map(() => '#e2e8f0');
+            categoryChart.update();
+
+        } else {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#718096;">No sales data for this period.</td></tr>';
+        }
+    } else {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:#718096;">No sales data for this period.</td></tr>';
+        categoryChart.data.datasets[0].data = CATEGORIES.map(() => 1);
+        categoryChart.data.datasets[0].backgroundColor = CATEGORIES.map(() => '#e2e8f0');
+        categoryChart.update();
+    }
+
+    // ── Peak Hour ──
+    if (report.success && report.transactions && report.transactions.length) {
+        const hourCounts = {};
+        report.transactions.forEach(t => {
+            const hrStr = new Date(t.created_at + ' UTC').toLocaleString('en-US', {
+                timeZone: 'Asia/Manila', hour: 'numeric', hour12: false
+            });
+            const hr = parseInt(hrStr);
+            hourCounts[hr] = (hourCounts[hr] || 0) + 1;
+        });
+        const peakEntry = Object.entries(hourCounts).sort((a, b) => b[1] - a[1])[0];
+        if (peakEntry) {
+            const hr24 = parseInt(peakEntry[0]);
+            const ampm = hr24 >= 12 ? 'PM' : 'AM';
+            const hr12 = hr24 % 12 === 0 ? 12 : hr24 % 12;
+            document.getElementById('stat-peak-hour').innerText = `${hr12}:00 ${ampm}`;
+            document.getElementById('stat-peak-traffic').innerHTML =
+                `<i class="fa-solid fa-fire"></i> ${peakEntry[1]} order${peakEntry[1] !== 1 ? 's' : ''} that hour`;
+        }
+    } else {
+        document.getElementById('stat-peak-hour').innerText = 'No orders';
+        document.getElementById('stat-peak-traffic').innerHTML =
+            `<i class="fa-solid fa-clock"></i> No data today`;
+    }
+}
 
             // ── Category doughnut — count qty sold per category ──
             const top = await api.dashboard.topProducts();
