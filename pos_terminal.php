@@ -1354,18 +1354,24 @@
                     </div>`;
             });
         }
+function addToCart(productId, name, price) {
+    // Find the product's available stock
+    const product = allProducts.find(p => p.id === productId);
+    const availableStock = (usingDB && product) ? parseInt(product.stock) : 999;
 
-        function addToCart(productId, name, price) {
-            const item = cart.find(i => i.product_id === productId);
-            if (item) item.quantity++;
-            else cart.push({
-                product_id: productId,
-                name,
-                price,
-                quantity: 1
-            });
-            renderCart();
-        }
+    const item = cart.find(i => i.product_id === productId);
+    const currentQty = item ? item.quantity : 0;
+
+    // Block if adding one more would exceed stock
+    if (usingDB && currentQty >= availableStock) {
+        alert(`Sorry! Only ${availableStock} unit(s) of "${name}" available in stock.`);
+        return;
+    }
+
+    if (item) item.quantity++;
+    else cart.push({ product_id: productId, name, price, quantity: 1 });
+    renderCart();
+}
 
         function minusQty(productId) {
             const item = cart.find(i => i.product_id === productId);
