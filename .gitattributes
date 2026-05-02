@@ -11,4 +11,4 @@ schema.sql linguist-detectable=false
 manifest.json linguist-detectable=false
 sw.js linguist-detectable=false
 pwa.js linguist-detectable=false
-api.js linguist-detectable=false
+api.js linguist-detectable=true
