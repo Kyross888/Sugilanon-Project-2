@@ -5,10 +5,10 @@
 # ── Exclude non-source files from language stats ─────────────
 .htaccess linguist-language=ApacheConf
 apache.conf linguist-language=ApacheConf
-Dockerfile linguist-detectable=false
-start.sh linguist-detectable=false
-schema.sql linguist-detectable=false
-manifest.json linguist-detectable=false
-sw.js linguist-detectable=false
-pwa.js linguist-detectable=false
+Dockerfile linguist-detectable=true
+start.sh linguist-detectable=true
+schema.sql linguist-detectable=true
+manifest.json linguist-detectable=true
+sw.js linguist-detectable=true
+pwa.js linguist-detectable=true
 api.js linguist-detectable=true
