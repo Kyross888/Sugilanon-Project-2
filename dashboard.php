@@ -319,7 +319,7 @@ if (isset($_GET['action'])) {
 <body>
     <nav class="sidebar" id="sidebar">
         <div class="brand" onclick="toggleSidebar()">
-<img src="download.jpg" alt="Luna's Logo">        </div>
+<img src="lunas.jpg" alt="Luna's Logo">        </div>
         <ul class="nav-links">
             <li><a href="dashboard.php" class="active"><i class="fa-solid fa-gauge"></i> <span>Dashboard</span></a></li>
             <li><a href="pos_terminal.php"><i class="fa-solid fa-cash-register"></i> <span>New Order</span></a></li>
