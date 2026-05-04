@@ -54,25 +54,13 @@ switch ($action) {
         $role        = trim($body['role']        ?? 'staff');
         $branch      = trim($body['branch']      ?? '');
         $employee_id = trim($body['employee_id'] ?? '');
-        $phone       = trim($body['phone']       ?? '');
 
         if (!$first_name || !$last_name || !$email || !$password) {
             respond(['success' => false, 'error' => 'All fields are required.'], 400);
         }
 
-        // Validate phone — required for SMS password reset
-        if (!$phone) {
-            respond(['success' => false, 'error' => 'Mobile number is required for SMS password reset.'], 400);
-        }
-        if (!preg_match('/^09\d{9}$/', $phone)) {
-            respond(['success' => false, 'error' => 'Enter a valid PH mobile number starting with 09 (e.g. 09171234567).'], 400);
-        }
-
-        // Check duplicate phone
-        $checkPhone = $pdo->prepare("SELECT id FROM users WHERE phone = ?");
-        $checkPhone->execute([$phone]);
-        if ($checkPhone->fetch()) {
-            respond(['success' => false, 'error' => 'That mobile number is already registered to another account.'], 409);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(['success' => false, 'error' => 'Enter a valid email address.'], 400);
         }
 
         // Check duplicate email
@@ -83,8 +71,6 @@ switch ($action) {
         }
 
         // Resolve branch key → ID
-        // The register form sends keys like 'gen_luna', 'sm_central' etc.
-        // Map them directly to the branch IDs from the database
         $branchKeyMap = [
             'festive'    => 1,
             'sm_central' => 2,
@@ -99,10 +85,8 @@ switch ($action) {
         $branch_id = null;
         if ($branch) {
             if (isset($branchKeyMap[$branch])) {
-                // Direct key match (e.g. 'gen_luna' → 3)
                 $branch_id = $branchKeyMap[$branch];
             } else {
-                // Fallback: try matching by branch name in DB
                 $br = $pdo->prepare("SELECT id FROM branches WHERE name = ? LIMIT 1");
                 $br->execute([$branch]);
                 $brRow = $br->fetch();
@@ -112,10 +96,10 @@ switch ($action) {
 
         $hash = password_hash($password, PASSWORD_BCRYPT);
         $ins  = $pdo->prepare(
-            "INSERT INTO users (first_name, last_name, email, password, role, employee_id, phone, branch_id)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT INTO users (first_name, last_name, email, password, role, employee_id, branch_id)
+             VALUES (?, ?, ?, ?, ?, ?, ?)"
         );
-        $ins->execute([$first_name, $last_name, $email, $hash, $role, $employee_id, $phone, $branch_id]);
+        $ins->execute([$first_name, $last_name, $email, $hash, $role, $employee_id, $branch_id]);
 
         // ── Also register with Supabase Auth so the user appears
         //    in Supabase Dashboard → Authentication → Users ──────
