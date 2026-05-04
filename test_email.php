@@ -28,8 +28,8 @@ try {
     $mail->SMTPAuth   = true;
     $mail->Username   = $GMAIL_USER;
     $mail->Password   = $GMAIL_PASS;
-    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-    $mail->Port       = 587;
+    $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+    $mail->Port       = 465;
     $mail->SMTPDebug  = 2; // Show full debug output
     $mail->Debugoutput = function($str, $level) {
         echo "<pre style='font-size:11px;background:#111;color:#0f0;padding:4px'>" . htmlspecialchars($str) . "</pre>";
