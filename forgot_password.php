@@ -188,8 +188,8 @@ function sendResetEmail(string $to, string $name, string $code, string $gmailUse
         $mail->SMTPAuth   = true;
         $mail->Username   = $gmailUser;
         $mail->Password   = $gmailPass;
-        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-        $mail->Port       = 587;
+        $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
+        $mail->Port       = 465;
         $mail->SMTPDebug  = 0;
         $mail->Timeout    = 10;
         $mail->SMTPOptions = [
