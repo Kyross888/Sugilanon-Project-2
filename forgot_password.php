@@ -50,18 +50,18 @@ if ($isApiRequest) {
 
     // ── SEND CODE ──────────────────────────────────────────
     if ($action === 'send') {
-        $phone = trim($body['phone'] ?? '');
-        if (!$phone) respond(['success' => false, 'error' => 'Mobile number is required.'], 400);
-        if (!preg_match('/^09\d{9}$/', $phone)) {
-            respond(['success' => false, 'error' => 'Enter a valid PH mobile number starting with 09.'], 400);
+        $email = trim($body['email'] ?? '');
+        if (!$email) respond(['success' => false, 'error' => 'Email address is required.'], 400);
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            respond(['success' => false, 'error' => 'Enter a valid email address.'], 400);
         }
 
-        // Find user by phone number, get their email too
-        $stmt = $pdo->prepare("SELECT id, first_name, email, phone FROM users WHERE phone = ? LIMIT 1");
-        $stmt->execute([$phone]);
+        // Find user by email
+        $stmt = $pdo->prepare("SELECT id, first_name, email FROM users WHERE email = ? LIMIT 1");
+        $stmt->execute([$email]);
         $user = $stmt->fetch();
         if (!$user) {
-            respond(['success' => false, 'error' => 'No account found with that mobile number.'], 404);
+            respond(['success' => false, 'error' => 'No account found with that email address.'], 404);
         }
 
         // Generate 6-digit code
@@ -115,12 +115,12 @@ if ($isApiRequest) {
 
     // ── VERIFY CODE ────────────────────────────────────────
     if ($action === 'verify') {
-        $phone = trim($body['phone'] ?? '');
+        $email = trim($body['email'] ?? '');
         $code  = trim($body['code']  ?? '');
-        if (!$phone || !$code) respond(['success' => false, 'error' => 'Phone and code are required.'], 400);
+        if (!$email || !$code) respond(['success' => false, 'error' => 'Email and code are required.'], 400);
 
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE phone = ? LIMIT 1");
-        $stmt->execute([$phone]);
+        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+        $stmt->execute([$email]);
         $user = $stmt->fetch();
         if (!$user) respond(['success' => false, 'error' => 'Invalid request.'], 400);
 
@@ -224,6 +224,12 @@ function sendResetEmail(string $to, string $name, string $code, string $gmailUse
     }
 }
 
+function respond(array $data, int $status = 200): never {
+    http_response_code($status);
+    echo json_encode($data);
+    exit;
+}
+
 
 // ── HTML PAGE ──────────────────────────────────────────────
 if (!$isApiRequest) {
@@ -276,14 +282,14 @@ if (!$isApiRequest) {
 <div class="card">
     <div class="logo"><i class="fa-solid fa-lock"></i></div>
 
-    <!-- Step 1: Enter phone number -->
+    <!-- Step 1: Enter email address -->
     <div class="step active" id="step1">
         <h2>Forgot Password?</h2>
-        <p class="sub">Enter your registered mobile number and we'll send a reset code to your email address.</p>
+        <p class="sub">Enter your registered email address and we'll send a reset code to your inbox.</p>
         <div id="msg1"></div>
         <div class="form-group">
-            <label>Mobile Number</label>
-            <input type="tel" id="phone-input" placeholder="09171234567" maxlength="11">
+            <label>Email Address</label>
+            <input type="email" id="email-input" placeholder="you@example.com" autocomplete="email">
         </div>
         <button class="btn" onclick="sendCode()">
             <i class="fa-solid fa-envelope"></i> Send Reset Code
@@ -342,7 +348,7 @@ if (!$isApiRequest) {
 </div>
 
 <script>
-    let resetPhone = '';
+    let resetEmail = '';
     let resetToken = '';
 
     function goStep(n) {
@@ -356,9 +362,10 @@ if (!$isApiRequest) {
     }
 
     async function sendCode(isResend = false) {
-        const phone = document.getElementById('phone-input').value.trim();
-        if (!phone) { showMsg(1, 'Please enter your mobile number.', 'error'); return; }
-        if (!/^09\d{9}$/.test(phone)) { showMsg(1, 'Enter a valid PH mobile number starting with 09.', 'error'); return; }
+        const email = document.getElementById('email-input').value.trim();
+        if (!email) { showMsg(1, 'Please enter your email address.', 'error'); return; }
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) { showMsg(1, 'Enter a valid email address.', 'error'); return; }
 
         const btn = document.querySelector('#step1 .btn');
         btn.disabled = true;
@@ -370,7 +377,7 @@ if (!$isApiRequest) {
         const res = await fetch('forgot_password.php?action=send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone }),
+            body: JSON.stringify({ email }),
             signal: controller.signal,
         }).then(r => r.json()).catch(() => null);
         clearTimeout(timer);
@@ -383,7 +390,7 @@ if (!$isApiRequest) {
             return;
         }
 
-        resetPhone = phone;
+        resetEmail = email;
 
         if (res.dev_code) {
             // Gmail not configured — show code on screen
@@ -420,7 +427,7 @@ if (!$isApiRequest) {
         const res = await fetch('forgot_password.php?action=verify', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ phone: resetPhone, code }),
+            body: JSON.stringify({ email: resetEmail, code }),
         }).then(r => r.json()).catch(() => null);
 
         btn.disabled = false;
