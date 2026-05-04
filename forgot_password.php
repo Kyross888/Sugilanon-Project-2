@@ -12,6 +12,12 @@
 //       GMAIL_USER = yourgmail@gmail.com
 //       GMAIL_PASS = your16charapppassword
 // ============================================================
+function respond(array $data, int $status = 200): never {
+    http_response_code($status);
+    echo json_encode($data);
+    exit;
+}
+
 ob_start();
 
 $isApiRequest = ($_SERVER['REQUEST_METHOD'] === 'POST') || isset($_GET['action']);
@@ -223,13 +229,6 @@ function sendResetEmail(string $to, string $name, string $code, string $gmailUse
         return false;
     }
 }
-
-function respond(array $data, int $status = 200): never {
-    http_response_code($status);
-    echo json_encode($data);
-    exit;
-}
-
 
 // ── HTML PAGE ──────────────────────────────────────────────
 if (!$isApiRequest) {
