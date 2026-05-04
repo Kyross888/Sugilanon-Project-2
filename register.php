@@ -21,81 +21,60 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
-        /* --- THEME VARIABLES --- */
-        /* Centralizing colors makes it incredibly easy to re-theme the app later */
-        
-         :root {
+        :root {
             --primary: #4f46e5;
-            /* Main brand color (Indigo) */
             --bg: #f8fafc;
-            /* Light gray/blue background */
         }
-        /* CSS Reset: Removes default browser margins so your app looks identical in Chrome, Safari, etc. */
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'SF Pro Display', sans-serif;
-            /* Apple's modern font */
         }
-        /* --- LAYOUT: PERFECT CENTERING --- */
-        
+
         body {
             background: var(--bg);
             min-height: 100vh;
-            /* Forces the body to be at least the height of the screen */
-            /* Flexbox properties used here to perfectly center the registration card 
-               both vertically and horizontally on the screen */
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 20px;
         }
-        /* --- THE REGISTRATION CARD --- */
-        
+
         .register-card {
             background: white;
             width: 100%;
             max-width: 500px;
-            /* Prevents the card from getting too wide on desktop screens */
             padding: 40px;
             border-radius: 24px;
-            /* Modern, heavily rounded corners */
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
-            /* Soft, elegant drop shadow */
         }
-        /* Typography Styling */
-        
+
         h2 {
             color: #1e293b;
             margin-bottom: 8px;
             text-align: center;
             font-size: 1.8rem;
         }
-        
+
         p {
             color: #64748b;
             margin-bottom: 30px;
             text-align: center;
         }
-        /* --- FORM GRID SYSTEM --- */
-        /* Used to put two inputs side-by-side (e.g., First Name and Last Name) */
-        
+
         .input-row {
             display: flex;
             gap: 15px;
-            /* Adds space between the two columns */
         }
-        /* Wrapper for individual inputs and their labels */
-        
+
         .input-group {
             flex: 1;
-            /* Tells the column to take up equal space inside the .input-row */
             text-align: left;
             margin-bottom: 20px;
         }
-        
+
         label {
             display: block;
             margin-bottom: 8px;
@@ -103,8 +82,7 @@
             color: #475569;
             font-size: 0.95rem;
         }
-        /* Input & Dropdown Field Styling */
-        
+
         input,
         select {
             width: 100%;
@@ -115,16 +93,13 @@
             outline: none;
             background: white;
             transition: border-color 0.2s;
-            /* Smooth transition when clicking into the field */
         }
-        /* Changes the border color to the primary brand color when the user clicks/types in the field */
-        
+
         input:focus,
         select:focus {
             border-color: var(--primary);
         }
-        /* --- SUBMIT BUTTON --- */
-        
+
         .register-btn {
             width: 100%;
             padding: 16px;
@@ -138,20 +113,18 @@
             margin-top: 10px;
             transition: opacity 0.2s;
         }
-        /* Slight fade effect when hovering over the button */
-        
+
         .register-btn:hover {
             opacity: 0.9;
         }
-        /* --- FOOTER LINK --- */
-        
+
         .footer-link {
             margin-top: 25px;
             color: #64748b;
             font-size: 0.9rem;
             text-align: center;
         }
-        
+
         .footer-link a {
             color: var(--primary);
             text-decoration: none;
@@ -181,12 +154,7 @@
 
             <div class="input-group">
                 <label>Email Address</label>
-                <input type="email" name="email" placeholder="lunas@example.com" required>
-            </div>
-
-            <div class="input-group">
-                <label>Mobile Number <span style="font-weight:400;color:#e53e3e;font-size:12px;">* required for SMS reset</span></label>
-                <input type="tel" name="phone" placeholder="09171234567" pattern="09\d{9}" title="Enter a valid PH number starting with 09" required>
+                <input type="email" name="email" placeholder="lunas@example.com" required autocomplete="email">
             </div>
 
             <div class="input-group">
@@ -239,29 +207,13 @@
             btn.textContent = 'Creating…';
             btn.disabled = true;
 
-            // Validate phone — required for SMS password reset
-            const phone = this.phone.value.trim();
-            if (!phone) {
-                alert('Mobile number is required for SMS password reset.');
-                btn.textContent = 'Create Account';
-                btn.disabled = false;
-                return;
-            }
-            if (!/^09\d{9}$/.test(phone)) {
-                alert('Enter a valid PH mobile number starting with 09 (e.g. 09171234567).');
-                btn.textContent = 'Create Account';
-                btn.disabled = false;
-                return;
-            }
-
             const payload = {
-                first_name: this.first_name.value,
-                last_name: this.last_name.value,
-                email: this.email.value,
-                phone: phone,
-                password: this.password.value,
-                role: this.role.value,
-                branch: this.branch.value,
+                first_name:  this.first_name.value,
+                last_name:   this.last_name.value,
+                email:       this.email.value,
+                password:    this.password.value,
+                role:        this.role.value,
+                branch:      this.branch.value,
                 employee_id: this.employee_id.value,
             };
 
