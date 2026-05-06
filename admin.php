@@ -1137,16 +1137,36 @@ if (isset($_GET['action'])) {
         }
 
         // ── Charts ─────────────────────────────────────────────
-        function initCharts() {
+        async function initCharts() {
             Chart.defaults.color       = '#64748b';
             Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+            // ── Revenue Trend: fetch last 7 days real data ──────
+            let revLabels = [];
+            let revData   = [];
+            try {
+                const trend = await fetch('dashboard.php?action=revenue_trend', { credentials: 'same-origin' }).then(r => r.json());
+                if (trend && trend.success && trend.data.length) {
+                    revLabels = trend.data.map(d => {
+                        const dt = new Date(d.day);
+                        return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+                    });
+                    revData = trend.data.map(d => parseFloat(d.revenue));
+                }
+            } catch (_) {}
+
+            // Fallback if no data yet
+            if (!revLabels.length) {
+                revLabels = ['No Data'];
+                revData   = [0];
+            }
 
             new Chart(document.getElementById('revenueChart'), {
                 type: 'line',
                 data: {
-                    labels:   ['W1','W2','W3','W4'],
+                    labels:   revLabels,
                     datasets: [{
-                        data:                [10000,11500,9500,12450],
+                        data:                revData,
                         borderColor:         '#4f46e5',
                         borderWidth:         3,
                         tension:             0.4,
@@ -1165,30 +1185,82 @@ if (isset($_GET['action'])) {
                         legend:  { display: false },
                         tooltip: {
                             backgroundColor: '#1e293b', padding: 12, cornerRadius: 8, displayColors: false,
-                            callbacks: { label: ctx => '₱' + ctx.parsed.y.toLocaleString() },
+                            callbacks: { label: ctx => '₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) },
                         },
                     },
                     scales: {
                         x: { grid: { display: false }, border: { display: false } },
                         y: {
+                            beginAtZero: true,
                             grid: { color: '#f1f5f9', drawBorder: false }, border: { display: false },
-                            ticks: { callback: v => '₱' + (v/1000) + 'k' },
+                            ticks: { callback: v => '₱' + (v >= 1000 ? (v/1000).toFixed(1) + 'k' : v) },
                         },
                     },
                 },
             });
 
+            // ── Sales by Category: fetch real top products + map to categories ──
+            const ADMIN_CATEGORIES = [
+                { key: 'Breakfast',             label: 'Breakfast',         color: '#5a67d8' },
+                { key: 'Merienda',              label: 'Merienda',          color: '#4fd1c5' },
+                { key: 'Burgers And Sandwiches',label: 'Burgers & Sand.',   color: '#f6ad55' },
+                { key: 'Rice Meal',             label: 'Rice Meal',         color: '#fc8181' },
+                { key: 'Native',                label: 'Native',            color: '#68d391' },
+                { key: 'Dessert',               label: 'Dessert',           color: '#f687b3' },
+                { key: 'Drinks',                label: 'Drinks',            color: '#76e4f7' },
+            ];
+
+            let catLabels = ADMIN_CATEGORIES.map(c => c.label);
+            let catData   = ADMIN_CATEGORIES.map(() => 0);
+            let catColors = ADMIN_CATEGORIES.map(c => c.color);
+            let hasRealCatData = false;
+
+            try {
+                const [topRes, prodRes] = await Promise.all([
+                    fetch('dashboard.php?action=top_products', { credentials: 'same-origin' }).then(r => r.json()),
+                    api.products.list(),
+                ]);
+                if (topRes.success && topRes.data.length && prodRes.success && prodRes.data.length) {
+                    const nameToCategory = {};
+                    prodRes.data.forEach(p => {
+                        nameToCategory[p.name.trim().toLowerCase()] = p.category;
+                    });
+                    const catTotals = {};
+                    ADMIN_CATEGORIES.forEach(c => catTotals[c.key] = 0);
+                    topRes.data.forEach(p => {
+                        const cat = nameToCategory[p.name.trim().toLowerCase()];
+                        if (cat && catTotals[cat] !== undefined) {
+                            catTotals[cat] += parseFloat(p.total_revenue || 0);
+                        }
+                    });
+                    catData = ADMIN_CATEGORIES.map(c => catTotals[c.key]);
+                    hasRealCatData = catData.some(v => v > 0);
+                }
+            } catch (_) {}
+
+            if (!hasRealCatData) {
+                catData   = ADMIN_CATEGORIES.map(() => 1);
+                catColors = ADMIN_CATEGORIES.map(() => '#e2e8f0');
+            }
+
             new Chart(document.getElementById('categoryChart'), {
                 type: 'doughnut',
                 data: {
-                    labels:   ['Rice Meals','Burgers & Sandwiches','Desserts','Drinks'],
-                    datasets: [{ data: [6500,3200,1500,1250], backgroundColor: ['#4f46e5','#10b981','#f59e0b','#ec4899'], borderWidth: 0, hoverOffset: 8 }],
+                    labels:   catLabels,
+                    datasets: [{ data: catData, backgroundColor: catColors, borderWidth: 0, hoverOffset: 8 }],
                 },
                 options: {
                     cutout:  '75%',
                     plugins: {
                         legend:  { display: false },
-                        tooltip: { backgroundColor: '#1e293b', padding: 12, cornerRadius: 8 },
+                        tooltip: {
+                            backgroundColor: '#1e293b', padding: 12, cornerRadius: 8,
+                            callbacks: {
+                                label: ctx => hasRealCatData
+                                    ? ctx.label + ': ₱' + ctx.parsed.toLocaleString('en-PH', { minimumFractionDigits: 2 })
+                                    : ctx.label + ': No data yet',
+                            },
+                        },
                     },
                 },
             });
