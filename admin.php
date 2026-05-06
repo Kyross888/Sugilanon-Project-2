@@ -47,13 +47,13 @@ if (isset($_GET['action'])) {
     }
 
     if ($action === 'monthly_revenue') {
+        // Show all-time daily revenue from the very first transaction
         $stmt = $pdo->prepare("
             SELECT
                 DATE(created_at) AS day,
                 COALESCE(SUM(total), 0) AS revenue
             FROM transactions
-            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
-              AND status = 'completed'
+            WHERE status = 'completed'
             GROUP BY DATE(created_at)
             ORDER BY day ASC
         ");
@@ -62,6 +62,7 @@ if (isset($_GET['action'])) {
     }
 
     if ($action === 'monthly_categories') {
+        // All-time category totals
         $stmt = $pdo->prepare("
             SELECT
                 p.category,
@@ -69,8 +70,7 @@ if (isset($_GET['action'])) {
             FROM transaction_items ti
             JOIN transactions t ON ti.transaction_id = t.id
             JOIN products p ON LOWER(TRIM(p.name)) = LOWER(TRIM(ti.product_name))
-            WHERE DATE_TRUNC('month', t.created_at) = DATE_TRUNC('month', CURRENT_DATE)
-              AND t.status = 'completed'
+            WHERE t.status = 'completed'
             GROUP BY p.category
             ORDER BY total_revenue DESC
         ");
@@ -529,7 +529,7 @@ if (isset($_GET['action'])) {
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <div class="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Revenue Forecast — This Month</h3>
+                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Revenue Forecast — All Time</h3>
                         <div class="h-[300px] w-full"><canvas id="revenueChart"></canvas></div>
                     </div>
 
