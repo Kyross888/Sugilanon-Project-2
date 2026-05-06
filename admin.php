@@ -78,6 +78,24 @@ if (isset($_GET['action'])) {
         respond(['success' => true, 'data' => $stmt->fetchAll()]);
     }
 
+    if ($action === 'top_moving') {
+        // All-time top products by quantity sold
+        $stmt = $pdo->prepare("
+            SELECT
+                ti.product_name AS name,
+                SUM(ti.quantity) AS total_qty,
+                COALESCE(SUM(ti.line_total), 0) AS total_revenue
+            FROM transaction_items ti
+            JOIN transactions t ON ti.transaction_id = t.id
+            WHERE t.status = 'completed'
+            GROUP BY ti.product_name
+            ORDER BY total_qty DESC
+            LIMIT 10
+        ");
+        $stmt->execute();
+        respond(['success' => true, 'data' => $stmt->fetchAll()]);
+    }
+
     respond(['success' => false, 'error' => 'Unknown action.'], 400);
     exit;
 }
@@ -553,29 +571,13 @@ if (isset($_GET['action'])) {
                             <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-400 text-[10px] uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                                 <tr>
                                     <th class="px-8 py-5 font-bold">Product Name</th>
+                                    <th class="px-8 py-5 font-bold">Units Sold</th>
                                     <th class="px-8 py-5 font-bold">Status</th>
                                     <th class="px-8 py-5 font-bold">Performance</th>
                                 </tr>
                             </thead>
-                            <tbody class="text-sm divide-y divide-slate-100 dark:divide-slate-700">
-                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                    <td class="px-8 py-5 font-bold text-slate-800 dark:text-slate-200">Arrozcaldo</td>
-                                    <td class="px-8 py-5 font-semibold text-emerald-600 dark:text-emerald-400">High Demand</td>
-                                    <td class="px-8 py-5">
-                                        <div class="w-32 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                            <div class="w-[85%] h-full bg-indigo-500 rounded-full"></div>
-                                        </div>
-                                    </td>
-                                </tr>
-                                <tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
-                                    <td class="px-8 py-5 font-bold text-slate-800 dark:text-slate-200">Classic Burger</td>
-                                    <td class="px-8 py-5 font-semibold text-emerald-600 dark:text-emerald-400">Steady</td>
-                                    <td class="px-8 py-5">
-                                        <div class="w-32 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                            <div class="w-[60%] h-full bg-emerald-500 rounded-full"></div>
-                                        </div>
-                                    </td>
-                                </tr>
+                            <tbody id="top-moving-tbody" class="text-sm divide-y divide-slate-100 dark:divide-slate-700">
+                                <tr><td colspan="4" class="px-8 py-8 text-center text-slate-400">Loading…</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -1050,7 +1052,7 @@ if (isset($_GET['action'])) {
             document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('is-active'); l.classList.add('is-inactive'); });
             const al = document.getElementById('nav-' + pageId);
             if (al) { al.classList.remove('is-inactive'); al.classList.add('is-active'); }
-            if (pageId === 'stats' && !chartsRendered) { initCharts(); chartsRendered = true; }
+            if (pageId === 'stats' && !chartsRendered) { initCharts(); loadTopMoving(); chartsRendered = true; }
         }
 
         // ── Dark Mode ──────────────────────────────────────────
@@ -1146,6 +1148,42 @@ if (isset($_GET['action'])) {
         }
 
         // ── Charts ─────────────────────────────────────────────
+        async function loadTopMoving() {
+            const tbody = document.getElementById('top-moving-tbody');
+            try {
+                const res = await fetch('admin.php?action=top_moving', { credentials: 'same-origin' }).then(r => r.json());
+                if (!res.success || !res.data.length) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="px-8 py-8 text-center text-slate-400">No sales data yet.</td></tr>';
+                    return;
+                }
+                const maxQty = Math.max(...res.data.map(p => parseInt(p.total_qty)));
+                tbody.innerHTML = res.data.map(p => {
+                    const qty = parseInt(p.total_qty);
+                    const pct = Math.round((qty / maxQty) * 100);
+                    let status, statusColor, barColor;
+                    if (pct >= 75) {
+                        status = 'High Demand'; statusColor = 'text-emerald-400'; barColor = 'bg-indigo-500';
+                    } else if (pct >= 40) {
+                        status = 'Steady';      statusColor = 'text-emerald-400'; barColor = 'bg-emerald-500';
+                    } else {
+                        status = 'Low';         statusColor = 'text-amber-400';   barColor = 'bg-amber-400';
+                    }
+                    return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                        <td class="px-8 py-5 font-bold text-slate-800 dark:text-slate-200">${p.name}</td>
+                        <td class="px-8 py-5 text-slate-500 dark:text-slate-400">${qty.toLocaleString()}</td>
+                        <td class="px-8 py-5 font-semibold ${statusColor}">${status}</td>
+                        <td class="px-8 py-5">
+                            <div class="w-32 h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div class="h-full ${barColor} rounded-full" style="width:${pct}%"></div>
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+            } catch (_) {
+                tbody.innerHTML = '<tr><td colspan="4" class="px-8 py-8 text-center text-red-400">Failed to load.</td></tr>';
+            }
+        }
+
         async function initCharts() {
             Chart.defaults.color       = '#64748b';
             Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
