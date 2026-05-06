@@ -46,6 +46,38 @@ if (isset($_GET['action'])) {
         respond(['success' => true, 'data' => $stmt->fetch()]);
     }
 
+    if ($action === 'monthly_revenue') {
+        $stmt = $pdo->prepare("
+            SELECT
+                DATE(created_at) AS day,
+                COALESCE(SUM(total), 0) AS revenue
+            FROM transactions
+            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+              AND status = 'completed'
+            GROUP BY DATE(created_at)
+            ORDER BY day ASC
+        ");
+        $stmt->execute();
+        respond(['success' => true, 'data' => $stmt->fetchAll()]);
+    }
+
+    if ($action === 'monthly_categories') {
+        $stmt = $pdo->prepare("
+            SELECT
+                p.category,
+                COALESCE(SUM(ti.line_total), 0) AS total_revenue
+            FROM transaction_items ti
+            JOIN transactions t ON ti.transaction_id = t.id
+            JOIN products p ON LOWER(TRIM(p.name)) = LOWER(TRIM(ti.product_name))
+            WHERE DATE_TRUNC('month', t.created_at) = DATE_TRUNC('month', CURRENT_DATE)
+              AND t.status = 'completed'
+            GROUP BY p.category
+            ORDER BY total_revenue DESC
+        ");
+        $stmt->execute();
+        respond(['success' => true, 'data' => $stmt->fetchAll()]);
+    }
+
     respond(['success' => false, 'error' => 'Unknown action.'], 400);
     exit;
 }
@@ -497,7 +529,7 @@ if (isset($_GET['action'])) {
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <div class="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Revenue Forecast</h3>
+                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Revenue Forecast — This Month</h3>
                         <div class="h-[300px] w-full"><canvas id="revenueChart"></canvas></div>
                     </div>
 
@@ -506,31 +538,8 @@ if (isset($_GET['action'])) {
                         <div class="h-[220px] flex items-center justify-center relative">
                             <canvas id="categoryChart"></canvas>
                         </div>
-                        <div class="mt-8 space-y-3">
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="flex items-center gap-3 text-slate-600 dark:text-slate-300 font-medium">
-                                    <div class="w-2.5 h-2.5 rounded-full" style="background:#4f46e5;"></div>Rice Meals
-                                </span>
-                                <span class="font-bold text-slate-900 dark:text-white">₱6,500</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="flex items-center gap-3 text-slate-600 dark:text-slate-300 font-medium">
-                                    <div class="w-2.5 h-2.5 rounded-full" style="background:#10b981;"></div>Burgers &amp; Sandwiches
-                                </span>
-                                <span class="font-bold text-slate-900 dark:text-white">₱3,200</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="flex items-center gap-3 text-slate-600 dark:text-slate-300 font-medium">
-                                    <div class="w-2.5 h-2.5 rounded-full" style="background:#f59e0b;"></div>Desserts
-                                </span>
-                                <span class="font-bold text-slate-900 dark:text-white">₱1,500</span>
-                            </div>
-                            <div class="flex justify-between items-center text-sm">
-                                <span class="flex items-center gap-3 text-slate-600 dark:text-slate-300 font-medium">
-                                    <div class="w-2.5 h-2.5 rounded-full" style="background:#ec4899;"></div>Drinks
-                                </span>
-                                <span class="font-bold text-slate-900 dark:text-white">₱1,250</span>
-                            </div>
+                        <div class="mt-8 space-y-3" id="categoryLegend">
+                            <p class="text-xs text-slate-400 text-center">Loading…</p>
                         </div>
                     </div>
                 </div>
@@ -1141,11 +1150,11 @@ if (isset($_GET['action'])) {
             Chart.defaults.color       = '#64748b';
             Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
 
-            // ── Revenue Trend: fetch last 7 days real data ──────
+            // ── Revenue: fetch current month daily totals ──────
             let revLabels = [];
             let revData   = [];
             try {
-                const trend = await fetch('dashboard.php?action=revenue_trend', { credentials: 'same-origin' }).then(r => r.json());
+                const trend = await fetch('admin.php?action=monthly_revenue', { credentials: 'same-origin' }).then(r => r.json());
                 if (trend && trend.success && trend.data.length) {
                     revLabels = trend.data.map(d => {
                         const dt = new Date(d.day);
@@ -1155,7 +1164,6 @@ if (isset($_GET['action'])) {
                 }
             } catch (_) {}
 
-            // Fallback if no data yet
             if (!revLabels.length) {
                 revLabels = ['No Data'];
                 revData   = [0];
@@ -1199,7 +1207,7 @@ if (isset($_GET['action'])) {
                 },
             });
 
-            // ── Sales by Category: fetch real top products + map to categories ──
+            // ── Sales by Category: fetch this month's real category totals ──
             const ADMIN_CATEGORIES = [
                 { key: 'Breakfast',             label: 'Breakfast',         color: '#5a67d8' },
                 { key: 'Merienda',              label: 'Merienda',          color: '#4fd1c5' },
@@ -1214,26 +1222,13 @@ if (isset($_GET['action'])) {
             let catData   = ADMIN_CATEGORIES.map(() => 0);
             let catColors = ADMIN_CATEGORIES.map(c => c.color);
             let hasRealCatData = false;
+            let catRevenues    = {};
 
             try {
-                const [topRes, prodRes] = await Promise.all([
-                    fetch('dashboard.php?action=top_products', { credentials: 'same-origin' }).then(r => r.json()),
-                    api.products.list(),
-                ]);
-                if (topRes.success && topRes.data.length && prodRes.success && prodRes.data.length) {
-                    const nameToCategory = {};
-                    prodRes.data.forEach(p => {
-                        nameToCategory[p.name.trim().toLowerCase()] = p.category;
-                    });
-                    const catTotals = {};
-                    ADMIN_CATEGORIES.forEach(c => catTotals[c.key] = 0);
-                    topRes.data.forEach(p => {
-                        const cat = nameToCategory[p.name.trim().toLowerCase()];
-                        if (cat && catTotals[cat] !== undefined) {
-                            catTotals[cat] += parseFloat(p.total_revenue || 0);
-                        }
-                    });
-                    catData = ADMIN_CATEGORIES.map(c => catTotals[c.key]);
+                const catRes = await fetch('admin.php?action=monthly_categories', { credentials: 'same-origin' }).then(r => r.json());
+                if (catRes && catRes.success && catRes.data.length) {
+                    catRes.data.forEach(row => { catRevenues[row.category] = parseFloat(row.total_revenue); });
+                    catData = ADMIN_CATEGORIES.map(c => catRevenues[c.key] || 0);
                     hasRealCatData = catData.some(v => v > 0);
                 }
             } catch (_) {}
@@ -1241,6 +1236,23 @@ if (isset($_GET['action'])) {
             if (!hasRealCatData) {
                 catData   = ADMIN_CATEGORIES.map(() => 1);
                 catColors = ADMIN_CATEGORIES.map(() => '#e2e8f0');
+            }
+
+            // ── Render dynamic legend ──────────────────────────
+            const legend = document.getElementById('categoryLegend');
+            if (hasRealCatData) {
+                const activeCategories = ADMIN_CATEGORIES.filter(c => (catRevenues[c.key] || 0) > 0);
+                legend.innerHTML = activeCategories.map(c => `
+                    <div class="flex justify-between items-center text-sm">
+                        <span class="flex items-center gap-3 text-slate-600 dark:text-slate-300 font-medium">
+                            <div class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:${c.color};"></div>${c.label}
+                        </span>
+                        <span class="font-bold text-slate-900 dark:text-white">
+                            ₱${(catRevenues[c.key] || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                        </span>
+                    </div>`).join('');
+            } else {
+                legend.innerHTML = '<p class="text-xs text-slate-400 text-center">No sales data this month yet.</p>';
             }
 
             new Chart(document.getElementById('categoryChart'), {
@@ -1258,7 +1270,7 @@ if (isset($_GET['action'])) {
                             callbacks: {
                                 label: ctx => hasRealCatData
                                     ? ctx.label + ': ₱' + ctx.parsed.toLocaleString('en-PH', { minimumFractionDigits: 2 })
-                                    : ctx.label + ': No data yet',
+                                    : 'No data this month yet',
                             },
                         },
                     },
