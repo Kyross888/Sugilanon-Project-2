@@ -653,7 +653,8 @@ if (isset($_GET['action'])) {
                         </h3>
                         <a href="#" onclick="openHistoryModal(event)" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1.5 rounded-full">View All</a>
                     </div>
-                    <div class="overflow-x-auto">
+                    <!-- Desktop table -->
+                    <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-left">
                             <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-400 text-[10px] uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                                 <tr>
@@ -669,6 +670,10 @@ if (isset($_GET['action'])) {
                                 <tr><td colspan="6" class="text-center py-8 text-slate-400">Loading…</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                    <!-- Mobile card list -->
+                    <div class="md:hidden divide-y divide-slate-100 dark:divide-slate-700" id="live-sales-cards">
+                        <div class="p-4 text-center text-slate-400 text-sm">Loading…</div>
                     </div>
                 </div>
             </main>
@@ -957,11 +962,13 @@ if (isset($_GET['action'])) {
                 const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
 
                 if (!res || !res.success || !res.transactions.length) {
-                    tbody.innerHTML = `<tr><td colspan="5" class="text-center py-10 text-slate-400">No transactions recorded for this branch on the selected date.</td></tr>`;
+                    tbody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-slate-400">No transactions recorded for this branch on the selected date.</td></tr>`;
+                    const cardsEl = document.getElementById('live-sales-cards');
+                    if (cardsEl) cardsEl.innerHTML = '<div class="p-6 text-center text-slate-400 text-sm">No transactions for this date.</div>';
                     return;
                 }
 
-                tbody.innerHTML = res.transactions.map(t => {
+                const rows = res.transactions.map(t => {
                     const dt   = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
                     const time = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const date = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
@@ -969,15 +976,39 @@ if (isset($_GET['action'])) {
                     const method      = (t.payment_method || '').toLowerCase();
                     const methodColor = method === 'gcash' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
                                                              'bg-emerald-50 text-emerald-700 border border-emerald-200';
-                    return `<tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                    return { t, dt, time, date, typeColor, method, methodColor };
+                });
+
+                // Desktop table rows
+                tbody.innerHTML = rows.map(({ t, date, time, typeColor, methodColor }) =>
+                    `<tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                         <td class="py-3 px-4 text-sm text-slate-500">${date} ${time}</td>
                         <td class="py-3 px-4 text-sm font-bold text-indigo-600">${t.reference_no}</td>
                         <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-300 max-w-xs truncate">${t.items_summary || '—'}</td>
                         <td class="py-3 px-4 text-sm"><span class="px-2 py-1 rounded-full text-xs font-semibold ${typeColor}">${t.order_type}</span></td>
                         <td class="py-3 px-4 text-sm font-bold text-slate-800 dark:text-slate-100">₱${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
                         <td class="py-3 px-4 text-sm"><span class="px-2 py-1 rounded-full text-xs font-bold ${methodColor}">${(t.payment_method || '—').toUpperCase()}</span></td>
-                    </tr>`;
-                }).join('');
+                    </tr>`
+                ).join('');
+
+                // Mobile cards
+                const cards = document.getElementById('live-sales-cards');
+                if (cards) {
+                    cards.innerHTML = rows.map(({ t, date, time, typeColor, methodColor }) =>
+                        `<div class="p-4 flex items-center justify-between gap-3">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                    <span class="font-bold text-indigo-600 text-sm">${t.reference_no}</span>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold ${typeColor}">${t.order_type}</span>
+                                    <span class="px-2 py-0.5 rounded-full text-[10px] font-bold ${methodColor}">${(t.payment_method || '—').toUpperCase()}</span>
+                                </div>
+                                <p class="text-xs text-slate-500 truncate">${t.items_summary || '—'}</p>
+                                <p class="text-[10px] text-slate-400 mt-0.5">${date} · ${time}</p>
+                            </div>
+                            <p class="font-black text-slate-800 dark:text-white text-base shrink-0">₱${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                        </div>`
+                    ).join('');
+                }
             } catch (e) {
                 tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-red-400 text-sm">Failed to load transactions.</td></tr>`;
             }
