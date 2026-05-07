@@ -37,10 +37,19 @@ $stmt->execute([$email]);
 $user = $stmt->fetch();
 
 if ($user) {
-    // ── Existing user: update google_id if not already set ────
-    if (empty($user['google_id'])) {
+    // ── Existing user: update google_id and password if provided ────
+    $plainPw = trim($body['password'] ?? '');
+    if (empty($user['google_id']) && $plainPw) {
+        $hash = password_hash($plainPw, PASSWORD_BCRYPT);
+        $pdo->prepare("UPDATE users SET google_id = ?, picture = ?, password = ? WHERE id = ?")
+            ->execute([$google_id, $picture, $hash, $user['id']]);
+    } elseif (empty($user['google_id'])) {
         $pdo->prepare("UPDATE users SET google_id = ?, picture = ? WHERE id = ?")
             ->execute([$google_id, $picture, $user['id']]);
+    } elseif ($plainPw && !password_verify($plainPw, $user['password'])) {
+        // User already has google_id but wants to set/update password
+        $hash = password_hash($plainPw, PASSWORD_BCRYPT);
+        $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $user['id']]);
     }
 
     if ($registerOnly) {
