@@ -644,6 +644,33 @@ if (isset($_GET['action'])) {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="branch-cards-grid"></div>
+
+                <!-- Transactions Table -->
+                <div class="mt-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
+                    <div class="p-6 border-b border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex justify-between items-center">
+                        <h3 class="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm">
+                            <i class="fas fa-receipt text-indigo-500 mr-2"></i>Transactions
+                        </h3>
+                        <a href="#" onclick="openHistoryModal(event)" class="text-xs font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-3 py-1.5 rounded-full">View All</a>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-400 text-[10px] uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
+                                <tr>
+                                    <th class="py-3 px-4 font-bold">Date & Time</th>
+                                    <th class="py-3 px-4 font-bold">Ref #</th>
+                                    <th class="py-3 px-4 font-bold">Items</th>
+                                    <th class="py-3 px-4 font-bold">Type</th>
+                                    <th class="py-3 px-4 font-bold">Total</th>
+                                    <th class="py-3 px-4 font-bold">Method</th>
+                                </tr>
+                            </thead>
+                            <tbody id="live-sales-table" class="text-sm divide-y divide-slate-100 dark:divide-slate-700">
+                                <tr><td colspan="6" class="text-center py-8 text-slate-400">Loading…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </main>
 
             <!-- ════════════════════════════════════
@@ -924,7 +951,7 @@ if (isset($_GET['action'])) {
             const tbody = document.getElementById('live-sales-table');
             if (!tbody) return;
 
-            tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-slate-400 text-sm">Loading transactions…</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="6" class="text-center py-8 text-slate-400 text-sm">Loading transactions…</td></tr>`;
 
             try {
                 const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
@@ -938,13 +965,17 @@ if (isset($_GET['action'])) {
                     const dt   = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
                     const time = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const date = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
-                    const typeColor = t.order_type === 'Dine-in' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
+                    const typeColor   = t.order_type === 'Dine-in' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
+                    const method      = (t.payment_method || '').toLowerCase();
+                    const methodColor = method === 'gcash' ? 'bg-blue-50 text-blue-600 border border-blue-200' :
+                                                             'bg-emerald-50 text-emerald-700 border border-emerald-200';
                     return `<tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                         <td class="py-3 px-4 text-sm text-slate-500">${date} ${time}</td>
                         <td class="py-3 px-4 text-sm font-bold text-indigo-600">${t.reference_no}</td>
                         <td class="py-3 px-4 text-sm text-slate-600 dark:text-slate-300 max-w-xs truncate">${t.items_summary || '—'}</td>
                         <td class="py-3 px-4 text-sm"><span class="px-2 py-1 rounded-full text-xs font-semibold ${typeColor}">${t.order_type}</span></td>
                         <td class="py-3 px-4 text-sm font-bold text-slate-800 dark:text-slate-100">₱${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</td>
+                        <td class="py-3 px-4 text-sm"><span class="px-2 py-1 rounded-full text-xs font-bold ${methodColor}">${(t.payment_method || '—').toUpperCase()}</span></td>
                     </tr>`;
                 }).join('');
             } catch (e) {
