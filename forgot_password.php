@@ -7,6 +7,7 @@ define('RESEND_API_KEY', 're_8wDGBnzU_MWMwETCrBaom8LuYE9isVSg3');
 define('RESEND_FROM',    'onboarding@resend.dev');
 define('SENDER_NAME',    "Luna's POS System");
 
+require_once __DIR__ . '/db.php';
 // ── Route: API (POST) vs HTML page (GET) ─────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])) {
     handleApi();
@@ -15,6 +16,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])) {
 }
 
 function handleApi(): void {
+    global $pdo;
     error_reporting(0);
     ini_set('display_errors', '0');
 
@@ -22,14 +24,11 @@ function handleApi(): void {
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type');
 
-    require_once __DIR__ . '/db.php';
-
     $action = $_GET['action'] ?? '';
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 
     try {
         // Ensure table exists
-        global $pdo;
         $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
             id         SERIAL PRIMARY KEY,
             user_id    INT NOT NULL,
