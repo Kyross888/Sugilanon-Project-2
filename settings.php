@@ -458,18 +458,6 @@
                     <i class="fa-solid fa-triangle-exclamation"></i> Security Tip: Use a combination of letters, numbers, and symbols for a stronger password.
                 </div>
 
-                <div class="section-title">SMS Password Reset</div>
-                <p style="font-size:13px;color:var(--text-light);margin-bottom:15px;">
-                    Save your Philippine mobile number. If you forget your password, a reset code will be sent here via SMS.
-                </p>
-                <div class="form-group">
-                    <label>Mobile Number (PH)</label>
-                    <div style="display:flex;gap:8px;">
-                        <input type="text" id="phone-number" placeholder="e.g. 09171234567" style="flex:1;">
-                        <button class="btn-save" onclick="savePhone()" style="white-space:nowrap;padding:10px 16px;">Save Number</button>
-                    </div>
-                </div>
-                <div id="phone-status" style="font-size:13px;margin-top:8px;"></div>
             </div>
         </div>
     </div>
@@ -532,9 +520,6 @@
             document.getElementById('profile-role').value = roleName;
             document.getElementById('profile-branch-field').value = branchName || 'Not assigned';
 
-            // Load saved phone if any
-            const savedPhone = localStorage.getItem('pos_phone_' + u.id);
-            if (savedPhone) document.getElementById('phone-number').value = savedPhone;
         }
 
         // ── Change Password ────────────────────────────────────
@@ -581,25 +566,6 @@
             }
         }
 
-        // ── Save Phone Number (stored locally per user) ────────
-        async function savePhone() {
-            const phone = document.getElementById('phone-number').value.trim();
-            const status = document.getElementById('phone-status');
-            if (!phone) {
-                status.innerHTML = '<span style="color:var(--danger);">Enter a phone number first.</span>';
-                return;
-            }
-            if (!/^09\d{9}$/.test(phone)) {
-                status.innerHTML = '<span style="color:var(--danger);">Enter a valid PH number starting with 09 (e.g. 09171234567).</span>';
-                return;
-            }
-
-            const me = await api.auth.me().catch(() => null);
-            if (me && me.success) {
-                localStorage.setItem('pos_phone_' + me.user.id, phone);
-                status.innerHTML = '<span style="color:var(--success);">✓ Number saved! It will be used for password reset.</span>';
-            }
-        }
 
         // ── Theme ──────────────────────────────────────────────
         function changeTheme(primary, hover) {
