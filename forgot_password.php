@@ -1,14 +1,19 @@
 <?php
 // ============================================================
-//  forgot_password.php  —  Password Reset via Resend API
+//  forgot_password.php  —  Password Reset via Gmail (PHPMailer)
 // ============================================================
 
-define('RESEND_API_KEY', 're_8wDGBnzU_MWMwETCrBaom8LuYE9isVSg3');
-define('RESEND_FROM',    'onboarding@resend.dev');
+define('GMAIL_USER',     'dtyronejed@gmail.com');
+define('GMAIL_APP_PASS', 'klmyhgwgdhvkrish');
 define('SENDER_NAME',    "Luna's POS System");
 
 require_once __DIR__ . '/db.php';
-// ── Route: API (POST) vs HTML page (GET) ─────────────────────
+require_once __DIR__ . '/vendor/autoload.php';
+
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\SMTP;
+use PHPMailer\PHPMailer\Exception;
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])) {
     handleApi();
 } else {
@@ -19,16 +24,12 @@ function handleApi(): void {
     global $pdo;
     error_reporting(0);
     ini_set('display_errors', '0');
-
     header('Content-Type: application/json');
-    header('Access-Control-Allow-Origin: *');
-    header('Access-Control-Allow-Headers: Content-Type');
 
     $action = $_GET['action'] ?? '';
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 
     try {
-        // Ensure table exists
         $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
             id         SERIAL PRIMARY KEY,
             user_id    INT NOT NULL,
@@ -39,19 +40,17 @@ function handleApi(): void {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )");
 
+        // ── STEP 1: Send Code ─────────────────────────────────
         if ($action === 'send') {
             $email = trim($body['email'] ?? '');
-            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL))
                 jsonOut(['success' => false, 'error' => 'Enter a valid email address.'], 400);
-            }
 
             $stmt = $pdo->prepare("SELECT id, first_name, email FROM users WHERE email = ? LIMIT 1");
             $stmt->execute([$email]);
             $user = $stmt->fetch();
-
-            if (!$user) {
+            if (!$user)
                 jsonOut(['success' => false, 'error' => 'No account found with that email address.'], 404);
-            }
 
             $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
             $expires = date('Y-m-d H:i:s', time() + 600);
@@ -65,22 +64,16 @@ function handleApi(): void {
 
             $sent = sendResetEmail($user['email'], $user['first_name'], $code);
 
-            if (!$sent) {
-                jsonOut([
-                    'success'      => true,
-                    'email_hint'   => $masked,
-                    'email_failed' => true,
-                    'dev_code'     => $code,
-                ]);
-            }
+            if (!$sent)
+                jsonOut(['success' => false, 'error' => 'Failed to send email. Please contact your administrator.'], 500);
 
             jsonOut(['success' => true, 'email_hint' => $masked]);
         }
 
+        // ── STEP 2: Verify Code ───────────────────────────────
         if ($action === 'verify') {
             $email = trim($body['email'] ?? '');
             $code  = trim($body['code']  ?? '');
-
             if (!$email || !$code) jsonOut(['success' => false, 'error' => 'Email and code are required.'], 400);
 
             $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
@@ -98,14 +91,13 @@ function handleApi(): void {
 
             $token = bin2hex(random_bytes(32));
             $pdo->prepare("UPDATE password_resets SET token = ? WHERE id = ?")->execute([$token, $reset['id']]);
-
             jsonOut(['success' => true, 'token' => $token]);
         }
 
+        // ── STEP 3: Reset Password ────────────────────────────
         if ($action === 'reset') {
             $token = trim($body['token']        ?? '');
             $newPw = trim($body['new_password'] ?? '');
-
             if (!$token || !$newPw) jsonOut(['success' => false, 'error' => 'Token and new password required.'], 400);
             if (strlen($newPw) < 6) jsonOut(['success' => false, 'error' => 'Password must be at least 6 characters.'], 400);
 
@@ -120,7 +112,6 @@ function handleApi(): void {
             $hash = password_hash($newPw, PASSWORD_BCRYPT);
             $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $reset['user_id']]);
             $pdo->prepare("UPDATE password_resets SET used = TRUE WHERE token = ?")->execute([$token]);
-
             jsonOut(['success' => true, 'message' => 'Password reset successfully.']);
         }
 
@@ -139,54 +130,58 @@ function jsonOut(array $data, int $status = 200): void {
 }
 
 function sendResetEmail(string $to, string $name, string $code): bool {
-    $html = "
-    <html><body style='margin:0;padding:0;background:#f8fafc;font-family:sans-serif;'>
-    <table width='100%' cellpadding='0' cellspacing='0' style='background:#f8fafc;padding:40px 20px;'>
-      <tr><td align='center'>
-        <table width='460' cellpadding='0' cellspacing='0' style='background:white;border-radius:16px;padding:40px;'>
-          <tr><td align='center' style='padding-bottom:16px;'>
-            <h2 style='margin:0;color:#1e293b;'>Password Reset Code</h2>
-          </td></tr>
-          <tr><td align='center' style='padding-bottom:24px;'>
-            <p style='margin:0;color:#64748b;'>Hi <strong>{$name}</strong>, use the code below to reset your password.</p>
-          </td></tr>
-          <tr><td align='center' style='padding-bottom:24px;'>
-            <div style='background:#eef2ff;border-radius:12px;padding:24px 32px;display:inline-block;'>
-              <span style='font-size:40px;font-weight:800;letter-spacing:12px;color:#4f46e5;font-family:monospace;'>{$code}</span>
-            </div>
-          </td></tr>
+    $mail = new PHPMailer(true);
+    try {
+        $mail->isSMTP();
+        $mail->Host       = 'smtp.gmail.com';
+        $mail->SMTPAuth   = true;
+        $mail->Username   = GMAIL_USER;
+        $mail->Password   = GMAIL_APP_PASS;
+        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // port 465 SSL
+        $mail->Port       = 465;
+
+        $mail->setFrom(GMAIL_USER, SENDER_NAME);
+        $mail->addAddress($to, $name);
+        $mail->isHTML(true);
+        $mail->Subject = "Your Password Reset Code - Luna's POS";
+        $mail->Body    = "
+        <html><body style='margin:0;padding:0;background:#f8fafc;font-family:sans-serif;'>
+        <table width='100%' cellpadding='0' cellspacing='0' style='background:#f8fafc;padding:40px 20px;'>
           <tr><td align='center'>
-            <p style='margin:0;color:#94a3b8;font-size:13px;'>Expires in <strong>10 minutes</strong>. If you didn't request this, ignore this email.</p>
+            <table width='460' cellpadding='0' cellspacing='0' style='background:white;border-radius:16px;padding:40px;box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
+              <tr><td align='center' style='padding-bottom:16px;'>
+                <div style='width:64px;height:64px;background:#eef2ff;border-radius:16px;display:inline-block;text-align:center;line-height:64px;font-size:30px;'>🔐</div>
+              </td></tr>
+              <tr><td align='center' style='padding-bottom:8px;'>
+                <h2 style='margin:0;color:#1e293b;font-size:22px;'>Password Reset Code</h2>
+              </td></tr>
+              <tr><td align='center' style='padding-bottom:28px;'>
+                <p style='margin:0;color:#64748b;font-size:14px;'>Hi <strong>{$name}</strong>, use the code below to reset your Luna's POS password.</p>
+              </td></tr>
+              <tr><td align='center' style='padding-bottom:24px;'>
+                <div style='background:#eef2ff;border-radius:12px;padding:24px 40px;display:inline-block;'>
+                  <span style='font-size:44px;font-weight:800;letter-spacing:14px;color:#4f46e5;font-family:monospace;'>{$code}</span>
+                </div>
+              </td></tr>
+              <tr><td align='center' style='padding-bottom:16px;'>
+                <p style='margin:0;color:#94a3b8;font-size:13px;'>This code expires in <strong>10 minutes</strong>.</p>
+                <p style='margin:6px 0 0;color:#94a3b8;font-size:13px;'>If you didn't request this, you can safely ignore this email.</p>
+              </td></tr>
+              <tr><td align='center'>
+                <p style='margin:0;color:#cbd5e1;font-size:11px;'>Luna's POS System &mdash; automated message</p>
+              </td></tr>
+            </table>
           </td></tr>
         </table>
-      </td></tr>
-    </table></body></html>";
+        </body></html>";
 
-    $payload = json_encode([
-        'from'    => SENDER_NAME . ' <' . RESEND_FROM . '>',
-        'to'      => [$to],
-        'subject' => "Your Password Reset Code - Luna's POS",
-        'html'    => $html,
-    ]);
-
-    $ch = curl_init('https://api.resend.com/emails');
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST           => true,
-        CURLOPT_POSTFIELDS     => $payload,
-        CURLOPT_HTTPHEADER     => [
-            'Authorization: Bearer ' . RESEND_API_KEY,
-            'Content-Type: application/json',
-        ],
-        CURLOPT_TIMEOUT => 15,
-    ]);
-
-    $response = curl_exec($ch);
-    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-
-    error_log("[Resend] HTTP {$httpCode}: {$response}");
-    return $httpCode >= 200 && $httpCode < 300;
+        $mail->send();
+        error_log("[PHPMailer] Email sent to {$to}");
+        return true;
+    } catch (Exception $e) {
+        error_log("[PHPMailer] Failed to send to {$to}: " . $mail->ErrorInfo);
+        return false;
+    }
 }
 
 function showPage(): void {
@@ -248,22 +243,22 @@ function showPage(): void {
     <div class="step active" id="step1">
         <div class="logo">🔐</div>
         <h2>Forgot Password?</h2>
-        <p class="sub">Enter your registered email and we'll send a 6-digit reset code to your inbox.</p>
+        <p class="sub">Enter your registered email and we'll send a 6-digit reset code to your Gmail inbox.</p>
         <div id="msg1"></div>
         <div class="form-group">
             <label>Email Address</label>
             <input type="email" id="email-input" placeholder="you@gmail.com" autocomplete="email">
         </div>
         <button class="btn" onclick="sendCode()">
-            <i class="fa-solid fa-paper-plane"></i> Send Code to Email
+            <i class="fa-solid fa-paper-plane"></i> Send Code to Gmail
         </button>
         <div class="back-link">Remember your password? <a href="login.php">Sign In</a></div>
     </div>
 
     <div class="step" id="step2">
         <div class="logo">📬</div>
-        <h2>Check Your Email</h2>
-        <p class="sub" id="step2-sub">A 6-digit code was sent to your email address.</p>
+        <h2>Check Your Gmail</h2>
+        <p class="sub" id="step2-sub">A 6-digit code was sent to your Gmail inbox.</p>
         <div id="msg2"></div>
         <div class="note">
             <i class="fa-solid fa-circle-info"></i>&nbsp;
@@ -306,7 +301,7 @@ function showPage(): void {
     <div class="step" id="step4">
         <div class="success-icon">✅</div>
         <h2>Password Reset!</h2>
-        <p class="sub">Your password has been changed. You can now sign in.</p>
+        <p class="sub">Your password has been changed. You can now sign in with your new password.</p>
         <a href="login.php" class="btn" style="display:block;text-decoration:none;margin-top:10px;">
             <i class="fa-solid fa-arrow-right-to-bracket"></i> Go to Login
         </a>
@@ -349,24 +344,18 @@ function showPage(): void {
             const res = await r.json();
 
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Email';
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Gmail';
 
             if (!res.success) { showMsg(1, res.error || 'Failed to send code.', 'error'); return; }
 
             resetEmail = email;
-
-            if (res.dev_code || res.email_failed) {
-                showMsg(2, `<strong>⚠️ Email issue.</strong> Your code is: <strong style="font-size:1.2rem;letter-spacing:4px">${res.dev_code}</strong>`, 'warn');
-                document.getElementById('step2-sub').textContent = 'Enter the code shown above.';
-            } else {
-                document.getElementById('step2-sub').textContent = `Code sent to ${res.email_hint}. Check your inbox.`;
-                if (isResend) showMsg(2, '✓ New code sent!', 'success');
-            }
+            document.getElementById('step2-sub').textContent = `A 6-digit code was sent to ${res.email_hint}. Check your inbox and spam folder.`;
+            if (isResend) showMsg(2, '✓ New code sent! Check your Gmail inbox.', 'success');
             goStep(2);
         } catch (err) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Email';
-            showMsg(1, 'Connection error: ' + err.message, 'error');
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Gmail';
+            showMsg(1, 'Connection error. Please try again.', 'error');
         }
     }
 
@@ -435,7 +424,7 @@ function showPage(): void {
         }
     }
 </script>
-<script src="pwa.js"></script>
+<script src="js/pwa.js"></script>
 </body>
 </html>
 <?php } ?>
