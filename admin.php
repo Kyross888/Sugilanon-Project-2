@@ -8,6 +8,7 @@
 if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     header('Access-Control-Allow-Origin: *');
+    date_default_timezone_set('Asia/Manila');
     require_once 'db.php';
 
     $user = requireAuth();
@@ -934,9 +935,9 @@ if (isset($_GET['action'])) {
                 }
 
                 tbody.innerHTML = res.transactions.map(t => {
-                    const dt   = new Date(t.created_at);
-                    const time = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
-                    const date = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+                    const dt   = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
+                    const time = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
+                    const date = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
                     const typeColor = t.order_type === 'Dine-in' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
                     return `<tr class="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                         <td class="py-3 px-4 text-sm text-slate-500">${date} ${time}</td>
@@ -965,9 +966,9 @@ if (isset($_GET['action'])) {
                     return;
                 }
                 tbody.innerHTML = res.transactions.map(t => {
-                    const dt        = new Date(t.created_at);
-                    const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
-                    const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+                    const dt        = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
+                    const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
+                    const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
                     return `<tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-6 py-4">
                             <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase mb-1 inline-block">${dateLabel}</span>
@@ -1222,17 +1223,17 @@ if (isset($_GET['action'])) {
                 }
 
                 // Show latest time
-                const latest = new Date(txns[0].created_at);
+                const latest = new Date(txns[0].created_at + (txns[0].created_at.includes('+') ? '' : '+00:00'));
                 document.getElementById('live-kpi-latest').textContent =
-                    latest.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+                    latest.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
 
                 // Only re-render if something changed
                 if (txns[0].id === lastTxnId && feed.children.length > 1) return;
                 lastTxnId = txns[0].id;
 
                 feed.innerHTML = txns.slice(0, 10).map((t, i) => {
-                    const dt     = new Date(t.created_at);
-                    const time   = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+                    const dt     = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
+                    const time   = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const isNew  = i === 0;
                     return `<div class="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] border ${isNew ? 'border-indigo-300 dark:border-indigo-500 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20' : 'border-slate-200 dark:border-slate-700 shadow-sm'}
                         flex flex-col md:flex-row justify-between items-center gap-4 transition-all ${isNew ? 'animate-[fadeIn_0.4s_ease]' : ''}">
