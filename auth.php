@@ -32,12 +32,12 @@ switch ($action) {
             respond(['success' => false, 'error' => 'Invalid credentials.'], 401);
         }
 
-        // Account was created via Google — no real password set
-        if (!empty($user['google_id']) && !password_verify($password, $user['password'])) {
-            respond(['success' => false, 'error' => 'This account uses Google Sign-In. Please click "Continue with Google" to log in.'], 401);
-        }
-
-        if (empty($user['google_id']) && !password_verify($password, $user['password'])) {
+        // Check password — works for both normal and Google accounts
+        if (!password_verify($password, $user['password'])) {
+            // If Google account with no real password, show helpful message
+            if (!empty($user['google_id'])) {
+                respond(['success' => false, 'error' => 'This account uses Google Sign-In. Use "Continue with Google" or reset your password to set one.'], 401);
+            }
             respond(['success' => false, 'error' => 'Invalid credentials.'], 401);
         }
 
