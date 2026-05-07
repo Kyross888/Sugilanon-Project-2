@@ -636,34 +636,40 @@ if (isset($_GET['action'])) {
                  LIVE PAGE
             ════════════════════════════════════ -->
             <main id="page-live" class="page-view w-full p-6 md:p-10 lg:p-12">
-                <div class="flex flex-col items-center justify-center min-h-[80vh]">
-                    <div class="w-full max-w-3xl flex flex-col items-center">
-                        <!-- Live header -->
-                        <div class="flex flex-col items-center mb-16 text-center">
-                            <div class="flex items-center gap-4 mb-3">
-                                <span class="w-5 h-5 bg-rose-500 rounded-full animate-pulse-red shadow-[0_0_15px_rgba(244,63,94,0.6)]"></span>
-                                <h1 class="text-5xl md:text-6xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Live</h1>
-                            </div>
-                            <p class="text-slate-500 text-lg md:text-xl font-medium">Real-time sales feed: <span id="live-branch-label" class="font-bold text-indigo-600 dark:text-indigo-400">General Luna</span></p>
+                <div class="w-full max-w-3xl mx-auto flex flex-col items-center">
+                    <!-- Live header -->
+                    <div class="flex flex-col items-center mb-10 text-center">
+                        <div class="flex items-center gap-4 mb-3">
+                            <span class="w-5 h-5 bg-rose-500 rounded-full animate-pulse-red shadow-[0_0_15px_rgba(244,63,94,0.6)]"></span>
+                            <h1 class="text-5xl md:text-6xl font-black text-slate-900 dark:text-white tracking-tight uppercase">Live</h1>
                         </div>
+                        <p class="text-slate-500 text-lg md:text-xl font-medium">Real-time sales feed: <span id="live-branch-label" class="font-bold text-indigo-600 dark:text-indigo-400">General Luna</span></p>
+                        <p id="live-last-updated" class="text-xs text-slate-400 mt-2 font-medium">Refreshing every 10 seconds…</p>
+                    </div>
 
-                        <div class="space-y-6 w-full">
-                            <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-6 text-center">Recent Transactions</h3>
-                            <div class="bg-white dark:bg-slate-800 p-8 md:p-10 rounded-[2.5rem] border border-slate-200 dark:border-slate-700 flex flex-col md:flex-row justify-between items-center group hover:border-indigo-300 dark:hover:border-indigo-500 transition-all shadow-lg hover:shadow-2xl hover:-translate-y-1 gap-6">
-                                <div class="flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
-                                    <div class="w-20 h-20 md:w-24 md:h-24 bg-indigo-50 dark:bg-indigo-500/10 rounded-2xl flex items-center justify-center text-indigo-500 dark:text-indigo-400 group-hover:bg-indigo-600 group-hover:text-white transition-colors shrink-0">
-                                        <i class="fas fa-shopping-cart fa-2x md:fa-3x"></i>
-                                    </div>
-                                    <div>
-                                        <p id="live-branch-name" class="font-black text-slate-800 dark:text-white text-xl md:text-2xl mb-1">General Luna</p>
-                                        <p class="text-sm md:text-base text-slate-400 font-medium">
-                                            <span class="text-indigo-500 dark:text-indigo-400 font-bold">Just now</span>
-                                        </p>
-                                    </div>
-                                </div>
-                                <div class="bg-emerald-50 dark:bg-emerald-500/10 px-6 py-4 rounded-2xl border border-emerald-100 dark:border-emerald-500/20">
-                                    <p class="font-black text-emerald-600 dark:text-emerald-400 text-3xl md:text-4xl">+ ₱1,250.00</p>
-                                </div>
+                    <!-- Live KPI strip -->
+                    <div class="grid grid-cols-3 gap-4 w-full mb-8">
+                        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Today's Sales</p>
+                            <p id="live-kpi-sales" class="text-lg font-black text-emerald-600 dark:text-emerald-400">₱0.00</p>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Orders</p>
+                            <p id="live-kpi-orders" class="text-lg font-black text-indigo-600 dark:text-indigo-400">0</p>
+                        </div>
+                        <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
+                            <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Latest</p>
+                            <p id="live-kpi-latest" class="text-lg font-black text-slate-800 dark:text-white">—</p>
+                        </div>
+                    </div>
+
+                    <!-- Transactions feed -->
+                    <div class="w-full">
+                        <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest mb-4 text-center">Recent Transactions</h3>
+                        <div id="live-feed" class="space-y-4 w-full">
+                            <div class="text-center py-12 text-slate-400">
+                                <i class="fas fa-satellite-dish fa-2x mb-3 animate-pulse"></i>
+                                <p class="font-medium">Connecting to live feed…</p>
                             </div>
                         </div>
                     </div>
@@ -1014,7 +1020,8 @@ if (isset($_GET['action'])) {
             document.getElementById('home-growth').innerText         = b.growth;
             document.getElementById('sales-branch-status').innerText = b.name;
             document.getElementById('live-branch-label').innerText   = b.name;
-            document.getElementById('live-branch-name').innerText    = b.name;
+            // Restart live feed when branch changes
+            if (liveInterval) { lastTxnId = null; loadLiveFeed(); }
             renderBranchCards(b);
         }
 
@@ -1053,6 +1060,7 @@ if (isset($_GET['action'])) {
             const al = document.getElementById('nav-' + pageId);
             if (al) { al.classList.remove('is-inactive'); al.classList.add('is-active'); }
             if (pageId === 'stats' && !chartsRendered) { initCharts(); loadTopMoving(); chartsRendered = true; }
+            if (pageId === 'live') { startLiveFeed(); } else { stopLiveFeed(); }
         }
 
         // ── Dark Mode ──────────────────────────────────────────
@@ -1145,6 +1153,94 @@ if (isset($_GET['action'])) {
                 if (btn) { btn.innerHTML = '<i class="fas fa-download"></i> Download Full Record'; btn.disabled = false; }
                 alert('Export failed. Please try again.');
             }
+        }
+
+        // ── Live Feed ──────────────────────────────────────────
+        let liveInterval = null;
+        let lastTxnId    = null;
+
+        async function loadLiveFeed() {
+            const branchId = branchIdMap[currentBranch];
+            const today    = todayStr();
+
+            try {
+                const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${today}`, { credentials: 'same-origin' }).then(r => r.json());
+
+                if (!res || !res.success) return;
+
+                // Update KPIs
+                const kpi = res.kpi || {};
+                document.getElementById('live-kpi-sales').textContent =
+                    '₱' + parseFloat(kpi.sales_today || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+                document.getElementById('live-kpi-orders').textContent = kpi.orders_today || 0;
+
+                const txns = res.transactions || [];
+                const feed = document.getElementById('live-feed');
+
+                if (!txns.length) {
+                    feed.innerHTML = `<div class="text-center py-12 text-slate-400">
+                        <i class="fas fa-clock fa-2x mb-3"></i>
+                        <p class="font-medium">No transactions yet today for ${branchInfo[currentBranch].name}.</p>
+                    </div>`;
+                    document.getElementById('live-kpi-latest').textContent = '—';
+                    return;
+                }
+
+                // Show latest time
+                const latest = new Date(txns[0].created_at);
+                document.getElementById('live-kpi-latest').textContent =
+                    latest.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+
+                // Only re-render if something changed
+                if (txns[0].id === lastTxnId && feed.children.length > 1) return;
+                lastTxnId = txns[0].id;
+
+                feed.innerHTML = txns.slice(0, 10).map((t, i) => {
+                    const dt     = new Date(t.created_at);
+                    const time   = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' });
+                    const isNew  = i === 0;
+                    return `<div class="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] border ${isNew ? 'border-indigo-300 dark:border-indigo-500 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20' : 'border-slate-200 dark:border-slate-700 shadow-sm'}
+                        flex flex-col md:flex-row justify-between items-center gap-4 transition-all ${isNew ? 'animate-[fadeIn_0.4s_ease]' : ''}">
+                        <div class="flex items-center gap-4 w-full md:w-auto">
+                            <div class="w-14 h-14 ${isNew ? 'bg-indigo-600' : 'bg-indigo-50 dark:bg-indigo-500/10'} rounded-xl flex items-center justify-center ${isNew ? 'text-white' : 'text-indigo-500'} shrink-0">
+                                <i class="fas fa-shopping-cart fa-lg"></i>
+                            </div>
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-2 mb-0.5">
+                                    <p class="font-black text-slate-800 dark:text-white text-base">${branchInfo[currentBranch].name}</p>
+                                    ${isNew ? '<span class="text-[9px] font-bold bg-rose-100 text-rose-600 px-2 py-0.5 rounded-full uppercase">New</span>' : ''}
+                                </div>
+                                <p class="text-xs text-slate-400 font-medium truncate">${t.items_summary || 'Order #' + t.reference_no}</p>
+                                <p class="text-xs text-indigo-500 font-bold mt-0.5">${time} · ${t.order_type} · ${t.payment_method}</p>
+                            </div>
+                        </div>
+                        <div class="bg-emerald-50 dark:bg-emerald-500/10 px-5 py-3 rounded-xl border border-emerald-100 dark:border-emerald-500/20 shrink-0">
+                            <p class="font-black text-emerald-600 dark:text-emerald-400 text-xl md:text-2xl whitespace-nowrap">
+                                + ₱${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
+                            </p>
+                        </div>
+                    </div>`;
+                }).join('');
+
+                // Update last refreshed time
+                const now = new Date();
+                document.getElementById('live-last-updated').textContent =
+                    'Last updated: ' + now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+            } catch (e) {
+                console.error('Live feed error:', e);
+            }
+        }
+
+        function startLiveFeed() {
+            lastTxnId = null;
+            loadLiveFeed();
+            if (liveInterval) clearInterval(liveInterval);
+            liveInterval = setInterval(loadLiveFeed, 10000); // refresh every 10s
+        }
+
+        function stopLiveFeed() {
+            if (liveInterval) { clearInterval(liveInterval); liveInterval = null; }
         }
 
         // ── Charts ─────────────────────────────────────────────
