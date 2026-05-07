@@ -71,8 +71,11 @@ if ($user) {
     ];
     $branch_id = isset($branchKeyMap[$branch]) ? $branchKeyMap[$branch] : null;
 
-    // We store a random unusable password hash so the column is never NULL
-    $dummyHash = password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT);
+    // Use provided password if given, otherwise generate a random one
+    $plainPw   = trim($body['password'] ?? '');
+    $dummyHash = $plainPw
+        ? password_hash($plainPw, PASSWORD_BCRYPT)
+        : password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT);
 
     $ins = $pdo->prepare(
         "INSERT INTO users (first_name, last_name, email, password, role, employee_id, branch_id, google_id, picture)
