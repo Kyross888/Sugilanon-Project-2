@@ -28,7 +28,16 @@ switch ($action) {
         $stmt->execute([$email, $role]);
         $user = $stmt->fetch();
 
-        if (!$user || !password_verify($password, $user['password'])) {
+        if (!$user) {
+            respond(['success' => false, 'error' => 'Invalid credentials.'], 401);
+        }
+
+        // Account was created via Google — no real password set
+        if (!empty($user['google_id']) && !password_verify($password, $user['password'])) {
+            respond(['success' => false, 'error' => 'This account uses Google Sign-In. Please click "Continue with Google" to log in.'], 401);
+        }
+
+        if (empty($user['google_id']) && !password_verify($password, $user['password'])) {
             respond(['success' => false, 'error' => 'Invalid credentials.'], 401);
         }
 
