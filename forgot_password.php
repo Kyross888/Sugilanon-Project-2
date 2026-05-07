@@ -1,50 +1,35 @@
 <?php
 // ============================================================
 //  forgot_password.php  —  Password Reset via Resend API
-//  Flow: enter email → receive 6-digit code → verify → reset
 // ============================================================
 
 define('RESEND_API_KEY', 're_8wDGBnzU_MWMwETCrBaom8LuYE9isVSg3');
 define('RESEND_FROM',    'onboarding@resend.dev');
 define('SENDER_NAME',    "Luna's POS System");
 
-function respond(array $data, int $status = 200): never {
-    http_response_code($status);
-    echo json_encode($data);
-    exit;
+// ── Route: API (POST) vs HTML page (GET) ─────────────────────
+if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])) {
+    handleApi();
+} else {
+    showPage();
 }
 
-ob_start();
-$isApiRequest = ($_SERVER['REQUEST_METHOD'] === 'POST') || isset($_GET['action']);
-
-if ($isApiRequest) {
-    ob_end_clean();
-    error_reporting(E_ERROR);
+function handleApi(): void {
+    error_reporting(0);
     ini_set('display_errors', '0');
-    require_once 'db.php';
+
     header('Content-Type: application/json');
     header('Access-Control-Allow-Origin: *');
     header('Access-Control-Allow-Headers: Content-Type');
 
+    require_once __DIR__ . '/db.php';
+
     $action = $_GET['action'] ?? '';
     $body   = json_decode(file_get_contents('php://input'), true) ?? [];
 
-    // ── STEP 1: Send Code ─────────────────────────────────────
-    if ($action === 'send') {
-        $email = trim($body['email'] ?? '');
-        if (!$email) respond(['success' => false, 'error' => 'Email address is required.'], 400);
-        if (!filter_var($email, FILTER_VALIDATE_EMAIL))
-            respond(['success' => false, 'error' => 'Enter a valid email address.'], 400);
-
-        $stmt = $pdo->prepare("SELECT id, first_name, email FROM users WHERE email = ? LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
-        if (!$user)
-            respond(['success' => false, 'error' => 'No account found with that email address.'], 404);
-
-        $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-        $expires = date('Y-m-d H:i:s', time() + 600);
-
+    try {
+        // Ensure table exists
+        global $pdo;
         $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
             id         SERIAL PRIMARY KEY,
             user_id    INT NOT NULL,
@@ -55,121 +40,134 @@ if ($isApiRequest) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )");
 
-        $pdo->prepare("DELETE FROM password_resets WHERE user_id = ?")->execute([$user['id']]);
-        $pdo->prepare("INSERT INTO password_resets (user_id, code, expires_at) VALUES (?, ?, ?)")
-            ->execute([$user['id'], $code, $expires]);
+        if ($action === 'send') {
+            $email = trim($body['email'] ?? '');
+            if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
+                jsonOut(['success' => false, 'error' => 'Enter a valid email address.'], 400);
+            }
 
-        [$emailLocal, $emailDomain] = explode('@', $user['email']);
-        $emailMasked = substr($emailLocal, 0, 1) . '***@' . $emailDomain;
+            $stmt = $pdo->prepare("SELECT id, first_name, email FROM users WHERE email = ? LIMIT 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
 
-        $sent = sendResetEmail($user['email'], $user['first_name'], $code);
+            if (!$user) {
+                jsonOut(['success' => false, 'error' => 'No account found with that email address.'], 404);
+            }
 
-        if (!$sent) {
-            error_log("[ForgotPW] Resend failed for {$user['email']}. Code: {$code}");
-            respond([
-                'success'      => true,
-                'email_hint'   => $emailMasked,
-                'email_failed' => true,
-                'dev_code'     => $code,
-            ]);
+            $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            $expires = date('Y-m-d H:i:s', time() + 600);
+
+            $pdo->prepare("DELETE FROM password_resets WHERE user_id = ?")->execute([$user['id']]);
+            $pdo->prepare("INSERT INTO password_resets (user_id, code, expires_at) VALUES (?, ?, ?)")
+                ->execute([$user['id'], $code, $expires]);
+
+            [$local, $domain] = explode('@', $user['email']);
+            $masked = substr($local, 0, 1) . '***@' . $domain;
+
+            $sent = sendResetEmail($user['email'], $user['first_name'], $code);
+
+            if (!$sent) {
+                jsonOut([
+                    'success'      => true,
+                    'email_hint'   => $masked,
+                    'email_failed' => true,
+                    'dev_code'     => $code,
+                ]);
+            }
+
+            jsonOut(['success' => true, 'email_hint' => $masked]);
         }
 
-        respond(['success' => true, 'email_hint' => $emailMasked]);
+        if ($action === 'verify') {
+            $email = trim($body['email'] ?? '');
+            $code  = trim($body['code']  ?? '');
+
+            if (!$email || !$code) jsonOut(['success' => false, 'error' => 'Email and code are required.'], 400);
+
+            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
+            $stmt->execute([$email]);
+            $user = $stmt->fetch();
+            if (!$user) jsonOut(['success' => false, 'error' => 'Invalid request.'], 400);
+
+            $stmt = $pdo->prepare(
+                "SELECT id FROM password_resets
+                 WHERE user_id = ? AND code = ? AND used = FALSE AND expires_at > NOW() LIMIT 1"
+            );
+            $stmt->execute([$user['id'], $code]);
+            $reset = $stmt->fetch();
+            if (!$reset) jsonOut(['success' => false, 'error' => 'Invalid or expired code. Please request a new one.'], 400);
+
+            $token = bin2hex(random_bytes(32));
+            $pdo->prepare("UPDATE password_resets SET token = ? WHERE id = ?")->execute([$token, $reset['id']]);
+
+            jsonOut(['success' => true, 'token' => $token]);
+        }
+
+        if ($action === 'reset') {
+            $token = trim($body['token']        ?? '');
+            $newPw = trim($body['new_password'] ?? '');
+
+            if (!$token || !$newPw) jsonOut(['success' => false, 'error' => 'Token and new password required.'], 400);
+            if (strlen($newPw) < 6) jsonOut(['success' => false, 'error' => 'Password must be at least 6 characters.'], 400);
+
+            $stmt = $pdo->prepare(
+                "SELECT user_id FROM password_resets
+                 WHERE token = ? AND used = FALSE AND expires_at > NOW() LIMIT 1"
+            );
+            $stmt->execute([$token]);
+            $reset = $stmt->fetch();
+            if (!$reset) jsonOut(['success' => false, 'error' => 'Invalid or expired token. Please restart.'], 400);
+
+            $hash = password_hash($newPw, PASSWORD_BCRYPT);
+            $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $reset['user_id']]);
+            $pdo->prepare("UPDATE password_resets SET used = TRUE WHERE token = ?")->execute([$token]);
+
+            jsonOut(['success' => true, 'message' => 'Password reset successfully.']);
+        }
+
+        jsonOut(['success' => false, 'error' => 'Unknown action.'], 400);
+
+    } catch (Throwable $e) {
+        error_log('[ForgotPW] ' . $e->getMessage());
+        jsonOut(['success' => false, 'error' => 'Server error: ' . $e->getMessage()], 500);
     }
-
-    // ── STEP 2: Verify Code ───────────────────────────────────
-    if ($action === 'verify') {
-        $email = trim($body['email'] ?? '');
-        $code  = trim($body['code']  ?? '');
-        if (!$email || !$code) respond(['success' => false, 'error' => 'Email and code are required.'], 400);
-
-        $stmt = $pdo->prepare("SELECT id FROM users WHERE email = ? LIMIT 1");
-        $stmt->execute([$email]);
-        $user = $stmt->fetch();
-        if (!$user) respond(['success' => false, 'error' => 'Invalid request.'], 400);
-
-        $stmt = $pdo->prepare(
-            "SELECT id FROM password_resets
-             WHERE user_id = ? AND code = ? AND used = FALSE AND expires_at > NOW()
-             LIMIT 1"
-        );
-        $stmt->execute([$user['id'], $code]);
-        $reset = $stmt->fetch();
-        if (!$reset)
-            respond(['success' => false, 'error' => 'Invalid or expired code. Please request a new one.'], 400);
-
-        $token = bin2hex(random_bytes(32));
-        $pdo->prepare("UPDATE password_resets SET token = ? WHERE id = ?")
-            ->execute([$token, $reset['id']]);
-
-        respond(['success' => true, 'token' => $token]);
-    }
-
-    // ── STEP 3: Reset Password ────────────────────────────────
-    if ($action === 'reset') {
-        $token = trim($body['token']        ?? '');
-        $newPw = trim($body['new_password'] ?? '');
-        if (!$token || !$newPw) respond(['success' => false, 'error' => 'Token and new password required.'], 400);
-        if (strlen($newPw) < 6) respond(['success' => false, 'error' => 'Password must be at least 6 characters.'], 400);
-
-        $stmt = $pdo->prepare(
-            "SELECT user_id FROM password_resets
-             WHERE token = ? AND used = FALSE AND expires_at > NOW()
-             LIMIT 1"
-        );
-        $stmt->execute([$token]);
-        $reset = $stmt->fetch();
-        if (!$reset) respond(['success' => false, 'error' => 'Invalid or expired token. Please restart.'], 400);
-
-        $hash = password_hash($newPw, PASSWORD_BCRYPT);
-        $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([$hash, $reset['user_id']]);
-        $pdo->prepare("UPDATE password_resets SET used = TRUE WHERE token = ?")->execute([$token]);
-
-        respond(['success' => true, 'message' => 'Password reset successfully.']);
-    }
-
-    respond(['success' => false, 'error' => 'Unknown action.'], 400);
 }
 
-// ── Send email via Resend API ─────────────────────────────────
+function jsonOut(array $data, int $status = 200): void {
+    http_response_code($status);
+    echo json_encode($data);
+    exit;
+}
+
 function sendResetEmail(string $to, string $name, string $code): bool {
-    $htmlBody = "
+    $html = "
     <html><body style='margin:0;padding:0;background:#f8fafc;font-family:sans-serif;'>
     <table width='100%' cellpadding='0' cellspacing='0' style='background:#f8fafc;padding:40px 20px;'>
       <tr><td align='center'>
-        <table width='460' cellpadding='0' cellspacing='0' style='background:white;border-radius:16px;padding:40px;box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
-          <tr><td align='center' style='padding-bottom:8px;'>
-            <div style='width:60px;height:60px;background:#eef2ff;border-radius:16px;display:inline-block;text-align:center;line-height:60px;'>
-              <span style='font-size:28px;'>🔐</span>
-            </div>
+        <table width='460' cellpadding='0' cellspacing='0' style='background:white;border-radius:16px;padding:40px;'>
+          <tr><td align='center' style='padding-bottom:16px;'>
+            <h2 style='margin:0;color:#1e293b;'>Password Reset Code</h2>
           </td></tr>
-          <tr><td align='center' style='padding-bottom:6px;'>
-            <h2 style='margin:0;color:#1e293b;font-size:22px;'>Password Reset Code</h2>
-          </td></tr>
-          <tr><td align='center' style='padding-bottom:28px;'>
-            <p style='margin:0;color:#64748b;font-size:14px;'>Hi <strong>{$name}</strong>, use the code below to reset your Luna\'s POS password.</p>
+          <tr><td align='center' style='padding-bottom:24px;'>
+            <p style='margin:0;color:#64748b;'>Hi <strong>{$name}</strong>, use the code below to reset your password.</p>
           </td></tr>
           <tr><td align='center' style='padding-bottom:24px;'>
             <div style='background:#eef2ff;border-radius:12px;padding:24px 32px;display:inline-block;'>
-              <span style='font-size:42px;font-weight:800;letter-spacing:14px;color:#4f46e5;font-family:monospace;'>{$code}</span>
+              <span style='font-size:40px;font-weight:800;letter-spacing:12px;color:#4f46e5;font-family:monospace;'>{$code}</span>
             </div>
           </td></tr>
-          <tr><td align='center' style='padding-bottom:20px;'>
-            <p style='margin:0;color:#94a3b8;font-size:13px;'>This code expires in <strong>10 minutes</strong>. If you did not request this, please ignore this email.</p>
-          </td></tr>
           <tr><td align='center'>
-            <p style='margin:0;color:#cbd5e1;font-size:12px;'>Luna\'s POS System &mdash; sent automatically</p>
+            <p style='margin:0;color:#94a3b8;font-size:13px;'>Expires in <strong>10 minutes</strong>. If you didn't request this, ignore this email.</p>
           </td></tr>
         </table>
       </td></tr>
-    </table>
-    </body></html>";
+    </table></body></html>";
 
     $payload = json_encode([
         'from'    => SENDER_NAME . ' <' . RESEND_FROM . '>',
         'to'      => [$to],
         'subject' => "Your Password Reset Code - Luna's POS",
-        'html'    => $htmlBody,
+        'html'    => $html,
     ]);
 
     $ch = curl_init('https://api.resend.com/emails');
@@ -188,17 +186,11 @@ function sendResetEmail(string $to, string $name, string $code): bool {
     $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
 
-    if ($httpCode < 200 || $httpCode >= 300) {
-        error_log("Resend error HTTP {$httpCode}: {$response}");
-        return false;
-    }
-
-    error_log("Resend: email sent to {$to}");
-    return true;
+    error_log("[Resend] HTTP {$httpCode}: {$response}");
+    return $httpCode >= 200 && $httpCode < 300;
 }
 
-// ── HTML PAGE ─────────────────────────────────────────────────
-if (!$isApiRequest) {
+function showPage(): void {
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -254,7 +246,6 @@ if (!$isApiRequest) {
         <div class="dot" id="dot3"></div>
     </div>
 
-    <!-- Step 1: Enter Email -->
     <div class="step active" id="step1">
         <div class="logo">🔐</div>
         <h2>Forgot Password?</h2>
@@ -270,7 +261,6 @@ if (!$isApiRequest) {
         <div class="back-link">Remember your password? <a href="login.php">Sign In</a></div>
     </div>
 
-    <!-- Step 2: Enter Code -->
     <div class="step" id="step2">
         <div class="logo">📬</div>
         <h2>Check Your Email</h2>
@@ -278,7 +268,7 @@ if (!$isApiRequest) {
         <div id="msg2"></div>
         <div class="note">
             <i class="fa-solid fa-circle-info"></i>&nbsp;
-            The code expires in <strong>10 minutes</strong>. Check your <strong>Inbox</strong> and <strong>Spam</strong> folder.
+            Expires in <strong>10 minutes</strong>. Check your <strong>Inbox</strong> and <strong>Spam</strong> folder.
         </div>
         <div class="code-inputs">
             <input type="text" inputmode="numeric" maxlength="1" id="d1" oninput="nextDigit(this,'d2')" onkeydown="prevDigit(event,'')">
@@ -296,11 +286,10 @@ if (!$isApiRequest) {
         </div>
     </div>
 
-    <!-- Step 3: New Password -->
     <div class="step" id="step3">
         <div class="logo">🔑</div>
         <h2>Set New Password</h2>
-        <p class="sub">Almost done! Create a strong new password for your account.</p>
+        <p class="sub">Almost done! Create a strong new password.</p>
         <div id="msg3"></div>
         <div class="form-group">
             <label>New Password</label>
@@ -315,11 +304,10 @@ if (!$isApiRequest) {
         </button>
     </div>
 
-    <!-- Step 4: Success -->
     <div class="step" id="step4">
         <div class="success-icon">✅</div>
         <h2>Password Reset!</h2>
-        <p class="sub">Your password has been changed successfully. You can now sign in with your new password.</p>
+        <p class="sub">Your password has been changed. You can now sign in.</p>
         <a href="login.php" class="btn" style="display:block;text-decoration:none;margin-top:10px;">
             <i class="fa-solid fa-arrow-right-to-bracket"></i> Go to Login
         </a>
@@ -342,49 +330,44 @@ if (!$isApiRequest) {
 
     function showMsg(stepNum, msg, type) {
         const el = document.getElementById('msg' + stepNum);
-        if (!el) return;
-        el.innerHTML = msg ? `<div class="alert alert-${type}">${msg}</div>` : '';
+        if (el) el.innerHTML = msg ? `<div class="alert alert-${type}">${msg}</div>` : '';
     }
 
     async function sendCode(isResend = false) {
         const email = document.getElementById('email-input').value.trim();
         if (!email) { showMsg(1, 'Please enter your email address.', 'error'); return; }
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showMsg(1, 'Enter a valid email address.', 'error'); return; }
 
         const btn = document.querySelector('#step1 .btn');
         btn.disabled = true;
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending…';
 
         try {
-            const res = await fetch('forgot_password.php?action=send', {
+            const r = await fetch('forgot_password.php?action=send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email }),
-            }).then(r => r.json());
+            });
+            const res = await r.json();
 
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Email';
 
-            if (!res.success) { showMsg(1, res.error || 'Failed to send code. Please try again.', 'error'); return; }
+            if (!res.success) { showMsg(1, res.error || 'Failed to send code.', 'error'); return; }
 
             resetEmail = email;
 
             if (res.dev_code || res.email_failed) {
-                showMsg(2,
-                    `<strong>⚠️ Email delivery issue.</strong><br>Your reset code is: <strong style="font-size:1.2rem;letter-spacing:4px">${res.dev_code}</strong>`,
-                    'warn'
-                );
-                document.getElementById('step2-sub').textContent = 'Enter the code shown above to continue.';
+                showMsg(2, `<strong>⚠️ Email issue.</strong> Your code is: <strong style="font-size:1.2rem;letter-spacing:4px">${res.dev_code}</strong>`, 'warn');
+                document.getElementById('step2-sub').textContent = 'Enter the code shown above.';
             } else {
-                document.getElementById('step2-sub').textContent = `A 6-digit code was sent to ${res.email_hint}. Check your inbox.`;
-                if (isResend) showMsg(2, '✓ New code sent! Check your inbox.', 'success');
+                document.getElementById('step2-sub').textContent = `Code sent to ${res.email_hint}. Check your inbox.`;
+                if (isResend) showMsg(2, '✓ New code sent!', 'success');
             }
-
             goStep(2);
         } catch (err) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Email';
-            showMsg(1, 'Connection error. Please try again.', 'error');
+            showMsg(1, 'Connection error: ' + err.message, 'error');
         }
     }
 
@@ -394,13 +377,11 @@ if (!$isApiRequest) {
     }
 
     function prevDigit(e, prevId) {
-        if (e.key === 'Backspace' && !e.target.value && prevId)
-            document.getElementById(prevId).focus();
+        if (e.key === 'Backspace' && !e.target.value && prevId) document.getElementById(prevId).focus();
     }
 
     async function verifyCode() {
-        const code = ['d1','d2','d3','d4','d5','d6']
-            .map(id => document.getElementById(id).value).join('');
+        const code = ['d1','d2','d3','d4','d5','d6'].map(id => document.getElementById(id).value).join('');
         if (code.length < 6) { showMsg(2, 'Please enter all 6 digits.', 'error'); return; }
 
         const btn = document.querySelector('#step2 .btn');
@@ -416,23 +397,22 @@ if (!$isApiRequest) {
 
             btn.disabled = false;
             btn.textContent = 'Verify Code';
-
             if (!res.success) { showMsg(2, res.error || 'Invalid or expired code.', 'error'); return; }
             resetToken = res.token;
             goStep(3);
         } catch (err) {
             btn.disabled = false;
             btn.textContent = 'Verify Code';
-            showMsg(2, 'Connection error. Please try again.', 'error');
+            showMsg(2, 'Connection error. Try again.', 'error');
         }
     }
 
     async function resetPassword() {
         const newPw  = document.getElementById('new-pw').value;
         const confPw = document.getElementById('confirm-pw').value;
-        if (!newPw || !confPw)  { showMsg(3, 'Both fields are required.', 'error'); return; }
-        if (newPw !== confPw)   { showMsg(3, 'Passwords do not match.', 'error'); return; }
-        if (newPw.length < 6)   { showMsg(3, 'Password must be at least 6 characters.', 'error'); return; }
+        if (!newPw || !confPw) { showMsg(3, 'Both fields are required.', 'error'); return; }
+        if (newPw !== confPw)  { showMsg(3, 'Passwords do not match.', 'error'); return; }
+        if (newPw.length < 6)  { showMsg(3, 'Password must be at least 6 characters.', 'error'); return; }
 
         const btn = document.querySelector('#step3 .btn');
         btn.disabled = true;
@@ -447,13 +427,12 @@ if (!$isApiRequest) {
 
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-lock"></i> Reset Password';
-
-            if (!res.success) { showMsg(3, res.error || 'Reset failed. Please try again.', 'error'); return; }
+            if (!res.success) { showMsg(3, res.error || 'Reset failed.', 'error'); return; }
             goStep(4);
         } catch (err) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-lock"></i> Reset Password';
-            showMsg(3, 'Connection error. Please try again.', 'error');
+            showMsg(3, 'Connection error. Try again.', 'error');
         }
     }
 </script>
