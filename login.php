@@ -101,7 +101,7 @@
 <script>
     // ── REPLACE with your Google OAuth Client ID ──────────────────────────
     // Get it from: https://console.cloud.google.com → APIs & Services → Credentials
-    const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+    const GOOGLE_CLIENT_ID = '916893963118-1bu7l2rctucb87isdvv1h97n8athen0f.apps.googleusercontent.com';
 
     let currentRole = 'admin';
 
