@@ -1,19 +1,12 @@
 <?php
 // ============================================================
-//  forgot_password.php  —  Password Reset via Gmail SMTP
+//  forgot_password.php  —  Password Reset via Resend API
 //  Flow: enter email → receive 6-digit code → verify → reset
 // ============================================================
 
-// ── CONFIGURE YOUR GMAIL HERE ─────────────────────────────────
-// 1. Use a Gmail account (can be your own)
-// 2. Enable 2-Factor Auth on that Gmail account
-// 3. Go to: Google Account → Security → App Passwords
-// 4. Generate an App Password (select "Mail" + "Other")
-// 5. Paste the 16-character app password below (no spaces)
-define('GMAIL_FROM',     'dtyronejed@gmail.com');
-define('GMAIL_APP_PASS', 'klmyhgwgdhvkrish');
-define('GMAIL_NAME',     "Luna's POS System");      // Sender display name
-// ─────────────────────────────────────────────────────────────
+define('RESEND_API_KEY', 're_8wDGBnzU_MWMwETCrBaom8LuYE9isVSg3');
+define('RESEND_FROM',    'onboarding@resend.dev');
+define('SENDER_NAME',    "Luna's POS System");
 
 function respond(array $data, int $status = 200): never {
     http_response_code($status);
@@ -49,11 +42,9 @@ if ($isApiRequest) {
         if (!$user)
             respond(['success' => false, 'error' => 'No account found with that email address.'], 404);
 
-        // Generate 6-digit code, valid 10 minutes
         $code    = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         $expires = date('Y-m-d H:i:s', time() + 600);
 
-        // Ensure password_resets table exists (PostgreSQL compatible)
         $pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
             id         SERIAL PRIMARY KEY,
             user_id    INT NOT NULL,
@@ -64,26 +55,22 @@ if ($isApiRequest) {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )");
 
-        // Remove any old codes for this user
         $pdo->prepare("DELETE FROM password_resets WHERE user_id = ?")->execute([$user['id']]);
         $pdo->prepare("INSERT INTO password_resets (user_id, code, expires_at) VALUES (?, ?, ?)")
             ->execute([$user['id'], $code, $expires]);
 
-        // Masked email hint for UI (e.g. j***@gmail.com)
         [$emailLocal, $emailDomain] = explode('@', $user['email']);
         $emailMasked = substr($emailLocal, 0, 1) . '***@' . $emailDomain;
 
-        // Send email via Gmail SMTP
-        $sent = sendResetEmailGmail($user['email'], $user['first_name'], $code);
+        $sent = sendResetEmail($user['email'], $user['first_name'], $code);
 
         if (!$sent) {
-            // Email failed — log and return code for dev/fallback
-            error_log("[ForgotPW] Gmail send FAILED for {$user['email']}. Code: {$code}");
+            error_log("[ForgotPW] Resend failed for {$user['email']}. Code: {$code}");
             respond([
                 'success'      => true,
                 'email_hint'   => $emailMasked,
                 'email_failed' => true,
-                'dev_code'     => $code,  // show in UI so admin can still reset
+                'dev_code'     => $code,
             ]);
         }
 
@@ -111,7 +98,6 @@ if ($isApiRequest) {
         if (!$reset)
             respond(['success' => false, 'error' => 'Invalid or expired code. Please request a new one.'], 400);
 
-        // Issue a one-time token for the reset step
         $token = bin2hex(random_bytes(32));
         $pdo->prepare("UPDATE password_resets SET token = ? WHERE id = ?")
             ->execute([$token, $reset['id']]);
@@ -145,21 +131,15 @@ if ($isApiRequest) {
     respond(['success' => false, 'error' => 'Unknown action.'], 400);
 }
 
-// ── Gmail SMTP sender (uses PHP's built-in mail() via SMTP) ──
-// We use raw socket SMTP so no extra libraries are needed.
-function sendResetEmailGmail(string $to, string $name, string $code): bool {
-    $from     = GMAIL_FROM;
-    $appPass  = GMAIL_APP_PASS;
-    $fromName = GMAIL_NAME;
-    $subject  = "Your Password Reset Code - Luna's POS";
-
+// ── Send email via Resend API ─────────────────────────────────
+function sendResetEmail(string $to, string $name, string $code): bool {
     $htmlBody = "
     <html><body style='margin:0;padding:0;background:#f8fafc;font-family:sans-serif;'>
     <table width='100%' cellpadding='0' cellspacing='0' style='background:#f8fafc;padding:40px 20px;'>
       <tr><td align='center'>
         <table width='460' cellpadding='0' cellspacing='0' style='background:white;border-radius:16px;padding:40px;box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
           <tr><td align='center' style='padding-bottom:8px;'>
-            <div style='width:60px;height:60px;background:#eef2ff;border-radius:16px;display:inline-flex;align-items:center;justify-content:center;'>
+            <div style='width:60px;height:60px;background:#eef2ff;border-radius:16px;display:inline-block;text-align:center;line-height:60px;'>
               <span style='font-size:28px;'>🔐</span>
             </div>
           </td></tr>
@@ -167,7 +147,7 @@ function sendResetEmailGmail(string $to, string $name, string $code): bool {
             <h2 style='margin:0;color:#1e293b;font-size:22px;'>Password Reset Code</h2>
           </td></tr>
           <tr><td align='center' style='padding-bottom:28px;'>
-            <p style='margin:0;color:#64748b;font-size:14px;'>Hi <strong>{$name}</strong>, use the code below to reset your Luna's POS password.</p>
+            <p style='margin:0;color:#64748b;font-size:14px;'>Hi <strong>{$name}</strong>, use the code below to reset your Luna\'s POS password.</p>
           </td></tr>
           <tr><td align='center' style='padding-bottom:24px;'>
             <div style='background:#eef2ff;border-radius:12px;padding:24px 32px;display:inline-block;'>
@@ -178,101 +158,46 @@ function sendResetEmailGmail(string $to, string $name, string $code): bool {
             <p style='margin:0;color:#94a3b8;font-size:13px;'>This code expires in <strong>10 minutes</strong>. If you did not request this, please ignore this email.</p>
           </td></tr>
           <tr><td align='center'>
-            <p style='margin:0;color:#cbd5e1;font-size:12px;'>Luna's POS System &mdash; sent automatically</p>
+            <p style='margin:0;color:#cbd5e1;font-size:12px;'>Luna\'s POS System &mdash; sent automatically</p>
           </td></tr>
         </table>
       </td></tr>
     </table>
     </body></html>";
 
-    // Build MIME email
-    $boundary = md5(uniqid());
-    $headers  = implode("\r\n", [
-        "MIME-Version: 1.0",
-        "Content-Type: text/html; charset=UTF-8",
-        "From: =?UTF-8?B?" . base64_encode($fromName) . "?= <{$from}>",
-        "Reply-To: {$from}",
-        "X-Mailer: LunasPOS/1.0",
+    $payload = json_encode([
+        'from'    => SENDER_NAME . ' <' . RESEND_FROM . '>',
+        'to'      => [$to],
+        'subject' => "Your Password Reset Code - Luna's POS",
+        'html'    => $htmlBody,
     ]);
 
-    // Use Gmail SMTP via raw socket
-    return smtpSend('smtp.gmail.com', 587, $from, $appPass, $to, $subject, $htmlBody);
-}
-
-function smtpSend(
-    string $host, int $port,
-    string $user, string $pass,
-    string $to, string $subject, string $htmlBody
-): bool {
-    $fp = @fsockopen($host, $port, $errno, $errstr, 15);
-    if (!$fp) { error_log("SMTP connect failed: $errstr ($errno)"); return false; }
-
-    $read = function() use ($fp) { return fgets($fp, 515); };
-    $send = function(string $cmd) use ($fp) { fwrite($fp, $cmd . "\r\n"); };
-
-    $read(); // 220 greeting
-    $send("EHLO lunas-pos");
-    while ($line = $read()) { if (substr($line, 3, 1) === ' ') break; } // read all EHLO lines
-
-    $send("STARTTLS");
-    $read(); // 220
-
-    stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
-
-    $send("EHLO lunas-pos");
-    while ($line = $read()) { if (substr($line, 3, 1) === ' ') break; }
-
-    $send("AUTH LOGIN");
-    $read(); // 334
-    $send(base64_encode($user));
-    $read(); // 334
-    $send(base64_encode($pass));
-    $authReply = $read(); // 235 or 535
-
-    if (strpos($authReply, '235') === false) {
-        error_log("SMTP auth failed: $authReply");
-        fclose($fp);
-        return false;
-    }
-
-    $send("MAIL FROM:<{$user}>");
-    $read();
-    $send("RCPT TO:<{$to}>");
-    $rcptReply = $read();
-    if (strpos($rcptReply, '250') === false) {
-        error_log("SMTP RCPT failed: $rcptReply");
-        fclose($fp);
-        return false;
-    }
-
-    $send("DATA");
-    $read(); // 354
-
-    $headers = implode("\r\n", [
-        "From: Luna's POS <{$user}>",
-        "To: {$to}",
-        "Subject: {$subject}",
-        "MIME-Version: 1.0",
-        "Content-Type: text/html; charset=UTF-8",
-        "X-Mailer: LunasPOS/1.0",
+    $ch = curl_init('https://api.resend.com/emails');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => $payload,
+        CURLOPT_HTTPHEADER     => [
+            'Authorization: Bearer ' . RESEND_API_KEY,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_TIMEOUT => 15,
     ]);
 
-    fwrite($fp, $headers . "\r\n\r\n" . $htmlBody . "\r\n.\r\n");
-    $dataReply = $read(); // 250
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
 
-    $send("QUIT");
-    fclose($fp);
-
-    if (strpos($dataReply, '250') === false) {
-        error_log("SMTP DATA failed: $dataReply");
+    if ($httpCode < 200 || $httpCode >= 300) {
+        error_log("Resend error HTTP {$httpCode}: {$response}");
         return false;
     }
 
-    error_log("SMTP: Reset code email sent to {$to}");
+    error_log("Resend: email sent to {$to}");
     return true;
 }
 
-// ── HTML PAGE (shown on GET request) ─────────────────────────
+// ── HTML PAGE ─────────────────────────────────────────────────
 if (!$isApiRequest) {
 ?>
 <!DOCTYPE html>
@@ -311,12 +236,10 @@ if (!$isApiRequest) {
         .alert-error   { background:#fef2f2; color:var(--danger); border:1px solid #fecaca; }
         .alert-success { background:#f0fdf4; color:var(--success); border:1px solid #bbf7d0; }
         .alert-warn    { background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
-        /* 6-digit code input boxes */
         .code-inputs { display:flex; gap:10px; justify-content:center; margin-bottom:22px; }
         .code-inputs input { width:48px; height:58px; text-align:center; font-size:22px; font-weight:700; border-radius:12px; padding:0; border:2px solid #e2e8f0; transition:.2s; }
         .code-inputs input:focus { border-color:var(--primary); outline:none; background:#eef2ff; }
         .note { background:#eef2ff; color:#4338ca; padding:12px 14px; border-radius:10px; font-size:.8rem; text-align:left; margin-bottom:22px; line-height:1.5; }
-        /* Progress dots */
         .progress { display:flex; justify-content:center; gap:8px; margin-bottom:28px; }
         .dot { width:8px; height:8px; border-radius:50%; background:#e2e8f0; transition:.3s; }
         .dot.active { background:var(--primary); width:24px; border-radius:4px; }
@@ -325,7 +248,6 @@ if (!$isApiRequest) {
 </head>
 <body>
 <div class="card">
-    <!-- Progress indicator -->
     <div class="progress">
         <div class="dot active" id="dot1"></div>
         <div class="dot" id="dot2"></div>
@@ -336,14 +258,14 @@ if (!$isApiRequest) {
     <div class="step active" id="step1">
         <div class="logo">🔐</div>
         <h2>Forgot Password?</h2>
-        <p class="sub">Enter your registered email and we'll send a 6-digit reset code to your Gmail inbox.</p>
+        <p class="sub">Enter your registered email and we'll send a 6-digit reset code to your inbox.</p>
         <div id="msg1"></div>
         <div class="form-group">
             <label>Email Address</label>
             <input type="email" id="email-input" placeholder="you@gmail.com" autocomplete="email">
         </div>
         <button class="btn" onclick="sendCode()">
-            <i class="fa-solid fa-paper-plane"></i> Send Code to Gmail
+            <i class="fa-solid fa-paper-plane"></i> Send Code to Email
         </button>
         <div class="back-link">Remember your password? <a href="login.php">Sign In</a></div>
     </div>
@@ -351,7 +273,7 @@ if (!$isApiRequest) {
     <!-- Step 2: Enter Code -->
     <div class="step" id="step2">
         <div class="logo">📬</div>
-        <h2>Check Your Gmail</h2>
+        <h2>Check Your Email</h2>
         <p class="sub" id="step2-sub">A 6-digit code was sent to your email address.</p>
         <div id="msg2"></div>
         <div class="note">
@@ -411,7 +333,6 @@ if (!$isApiRequest) {
     function goStep(n) {
         document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
         document.getElementById('step' + n).classList.add('active');
-        // Update progress dots
         for (let i = 1; i <= 3; i++) {
             const dot = document.getElementById('dot' + i);
             if (dot) dot.classList.toggle('active', i === n);
@@ -426,8 +347,7 @@ if (!$isApiRequest) {
     }
 
     async function sendCode(isResend = false) {
-        const emailEl = document.getElementById('email-input');
-        const email = emailEl.value.trim();
+        const email = document.getElementById('email-input').value.trim();
         if (!email) { showMsg(1, 'Please enter your email address.', 'error'); return; }
         if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { showMsg(1, 'Enter a valid email address.', 'error'); return; }
 
@@ -443,7 +363,7 @@ if (!$isApiRequest) {
             }).then(r => r.json());
 
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Gmail';
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Email';
 
             if (!res.success) { showMsg(1, res.error || 'Failed to send code. Please try again.', 'error'); return; }
 
@@ -451,19 +371,19 @@ if (!$isApiRequest) {
 
             if (res.dev_code || res.email_failed) {
                 showMsg(2,
-                    `<strong>⚠️ Gmail not configured yet.</strong><br>Your reset code is: <strong style="font-size:1.2rem;letter-spacing:4px">${res.dev_code}</strong>`,
+                    `<strong>⚠️ Email delivery issue.</strong><br>Your reset code is: <strong style="font-size:1.2rem;letter-spacing:4px">${res.dev_code}</strong>`,
                     'warn'
                 );
                 document.getElementById('step2-sub').textContent = 'Enter the code shown above to continue.';
             } else {
                 document.getElementById('step2-sub').textContent = `A 6-digit code was sent to ${res.email_hint}. Check your inbox.`;
-                if (isResend) showMsg(2, '✓ New code sent! Check your Gmail inbox.', 'success');
+                if (isResend) showMsg(2, '✓ New code sent! Check your inbox.', 'success');
             }
 
             goStep(2);
         } catch (err) {
             btn.disabled = false;
-            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Gmail';
+            btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Email';
             showMsg(1, 'Connection error. Please try again.', 'error');
         }
     }
@@ -498,7 +418,6 @@ if (!$isApiRequest) {
             btn.textContent = 'Verify Code';
 
             if (!res.success) { showMsg(2, res.error || 'Invalid or expired code.', 'error'); return; }
-
             resetToken = res.token;
             goStep(3);
         } catch (err) {
@@ -530,7 +449,6 @@ if (!$isApiRequest) {
             btn.innerHTML = '<i class="fa-solid fa-lock"></i> Reset Password';
 
             if (!res.success) { showMsg(3, res.error || 'Reset failed. Please try again.', 'error'); return; }
-
             goStep(4);
         } catch (err) {
             btn.disabled = false;
