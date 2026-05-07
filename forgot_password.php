@@ -1,18 +1,9 @@
 <?php
 // ============================================================
-//  forgot_password.php  —  Password Reset via Gmail (PHPMailer)
+//  forgot_password.php  —  Password Reset via EmailJS
 // ============================================================
 
-define('GMAIL_USER',     'dtyronejed@gmail.com');
-define('GMAIL_APP_PASS', 'klmyhgwgdhvkrish');
-define('SENDER_NAME',    "Luna's POS System");
-
 require_once __DIR__ . '/db.php';
-require_once __DIR__ . '/vendor/autoload.php';
-
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\SMTP;
-use PHPMailer\PHPMailer\Exception;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' || isset($_GET['action'])) {
     handleApi();
@@ -40,7 +31,6 @@ function handleApi(): void {
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )");
 
-        // ── STEP 1: Send Code ─────────────────────────────────
         if ($action === 'send') {
             $email = trim($body['email'] ?? '');
             if (!$email || !filter_var($email, FILTER_VALIDATE_EMAIL))
@@ -62,15 +52,17 @@ function handleApi(): void {
             [$local, $domain] = explode('@', $user['email']);
             $masked = substr($local, 0, 1) . '***@' . $domain;
 
-            $sent = sendResetEmail($user['email'], $user['first_name'], $code);
-
-            if (!$sent)
-                jsonOut(['success' => false, 'error' => 'Failed to send email. Please contact your administrator.'], 500);
-
-            jsonOut(['success' => true, 'email_hint' => $masked]);
+            // Return code + masked email — EmailJS sends from the browser
+            jsonOut([
+                'success'    => true,
+                'email_hint' => $masked,
+                'to_email'   => $user['email'],
+                'to_name'    => $user['first_name'],
+                'passcode'   => $code,
+                'time'       => date('M d, Y h:i A'),
+            ]);
         }
 
-        // ── STEP 2: Verify Code ───────────────────────────────
         if ($action === 'verify') {
             $email = trim($body['email'] ?? '');
             $code  = trim($body['code']  ?? '');
@@ -94,7 +86,6 @@ function handleApi(): void {
             jsonOut(['success' => true, 'token' => $token]);
         }
 
-        // ── STEP 3: Reset Password ────────────────────────────
         if ($action === 'reset') {
             $token = trim($body['token']        ?? '');
             $newPw = trim($body['new_password'] ?? '');
@@ -129,63 +120,7 @@ function jsonOut(array $data, int $status = 200): void {
     exit;
 }
 
-function sendResetEmail(string $to, string $name, string $code): bool {
-    $mail = new PHPMailer(true);
-    try {
-        $mail->isSMTP();
-        $mail->Host       = 'smtp.gmail.com';
-        $mail->SMTPAuth   = true;
-        $mail->Username   = GMAIL_USER;
-        $mail->Password   = GMAIL_APP_PASS;
-        $mail->SMTPSecure = PHPMailer::ENCRYPTION_SMTPS; // port 465 SSL
-        $mail->Port       = 465;
-
-        $mail->setFrom(GMAIL_USER, SENDER_NAME);
-        $mail->addAddress($to, $name);
-        $mail->isHTML(true);
-        $mail->Subject = "Your Password Reset Code - Luna's POS";
-        $mail->Body    = "
-        <html><body style='margin:0;padding:0;background:#f8fafc;font-family:sans-serif;'>
-        <table width='100%' cellpadding='0' cellspacing='0' style='background:#f8fafc;padding:40px 20px;'>
-          <tr><td align='center'>
-            <table width='460' cellpadding='0' cellspacing='0' style='background:white;border-radius:16px;padding:40px;box-shadow:0 4px 12px rgba(0,0,0,0.08);'>
-              <tr><td align='center' style='padding-bottom:16px;'>
-                <div style='width:64px;height:64px;background:#eef2ff;border-radius:16px;display:inline-block;text-align:center;line-height:64px;font-size:30px;'>🔐</div>
-              </td></tr>
-              <tr><td align='center' style='padding-bottom:8px;'>
-                <h2 style='margin:0;color:#1e293b;font-size:22px;'>Password Reset Code</h2>
-              </td></tr>
-              <tr><td align='center' style='padding-bottom:28px;'>
-                <p style='margin:0;color:#64748b;font-size:14px;'>Hi <strong>{$name}</strong>, use the code below to reset your Luna's POS password.</p>
-              </td></tr>
-              <tr><td align='center' style='padding-bottom:24px;'>
-                <div style='background:#eef2ff;border-radius:12px;padding:24px 40px;display:inline-block;'>
-                  <span style='font-size:44px;font-weight:800;letter-spacing:14px;color:#4f46e5;font-family:monospace;'>{$code}</span>
-                </div>
-              </td></tr>
-              <tr><td align='center' style='padding-bottom:16px;'>
-                <p style='margin:0;color:#94a3b8;font-size:13px;'>This code expires in <strong>10 minutes</strong>.</p>
-                <p style='margin:6px 0 0;color:#94a3b8;font-size:13px;'>If you didn't request this, you can safely ignore this email.</p>
-              </td></tr>
-              <tr><td align='center'>
-                <p style='margin:0;color:#cbd5e1;font-size:11px;'>Luna's POS System &mdash; automated message</p>
-              </td></tr>
-            </table>
-          </td></tr>
-        </table>
-        </body></html>";
-
-        $mail->send();
-        error_log("[PHPMailer] Email sent to {$to}");
-        return true;
-    } catch (Exception $e) {
-        error_log("[PHPMailer] Failed to send to {$to}: " . $mail->ErrorInfo);
-        return false;
-    }
-}
-
-function showPage(): void {
-?>
+function showPage(): void { ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -200,6 +135,8 @@ function showPage(): void {
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Forgot Password - POS System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- EmailJS SDK -->
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
     <style>
         :root { --primary:#4f46e5; --bg:#f8fafc; --success:#16a34a; --danger:#dc2626; }
         * { margin:0; padding:0; box-sizing:border-box; font-family:'SF Pro Display',sans-serif; }
@@ -221,7 +158,6 @@ function showPage(): void {
         .alert { padding:12px 16px; border-radius:10px; font-size:.85rem; margin-bottom:16px; text-align:left; }
         .alert-error   { background:#fef2f2; color:var(--danger); border:1px solid #fecaca; }
         .alert-success { background:#f0fdf4; color:var(--success); border:1px solid #bbf7d0; }
-        .alert-warn    { background:#fffbeb; color:#92400e; border:1px solid #fde68a; }
         .code-inputs { display:flex; gap:10px; justify-content:center; margin-bottom:22px; }
         .code-inputs input { width:48px; height:58px; text-align:center; font-size:22px; font-weight:700; border-radius:12px; padding:0; border:2px solid #e2e8f0; transition:.2s; }
         .code-inputs input:focus { border-color:var(--primary); outline:none; background:#eef2ff; }
@@ -309,6 +245,13 @@ function showPage(): void {
 </div>
 
 <script>
+    // ── EmailJS credentials ───────────────────────────────────
+    const EMAILJS_PUBLIC_KEY  = 'N784JfmP7JQjtoR06';
+    const EMAILJS_SERVICE_ID  = 'service_m9cpb7x';
+    const EMAILJS_TEMPLATE_ID = 'template_rk0ek1e';
+
+    emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+
     let resetEmail = '';
     let resetToken = '';
 
@@ -336,6 +279,7 @@ function showPage(): void {
         btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Sending…';
 
         try {
+            // Step 1: get code from PHP
             const r = await fetch('forgot_password.php?action=send', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -343,19 +287,33 @@ function showPage(): void {
             });
             const res = await r.json();
 
+            if (!res.success) {
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Gmail';
+                showMsg(1, res.error || 'Failed. Please try again.', 'error');
+                return;
+            }
+
+            // Step 2: send email via EmailJS from browser
+            await emailjs.send(EMAILJS_SERVICE_ID, EMAILJS_TEMPLATE_ID, {
+                email:    res.to_email,
+                to_name:  res.to_name,
+                passcode: res.passcode,
+                time:     res.time,
+            });
+
+            resetEmail = email;
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Gmail';
 
-            if (!res.success) { showMsg(1, res.error || 'Failed to send code.', 'error'); return; }
-
-            resetEmail = email;
             document.getElementById('step2-sub').textContent = `A 6-digit code was sent to ${res.email_hint}. Check your inbox and spam folder.`;
-            if (isResend) showMsg(2, '✓ New code sent! Check your Gmail inbox.', 'success');
+            if (isResend) showMsg(2, '✓ New code sent! Check your Gmail.', 'success');
             goStep(2);
+
         } catch (err) {
             btn.disabled = false;
             btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i> Send Code to Gmail';
-            showMsg(1, 'Connection error. Please try again.', 'error');
+            showMsg(1, 'Failed to send email: ' + (err.text || err.message || 'Please try again.'), 'error');
         }
     }
 
