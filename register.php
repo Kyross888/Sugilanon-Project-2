@@ -136,7 +136,7 @@
 <script src="js/api.js"></script>
 <script>
     // ── REPLACE with your Google OAuth Client ID ──────────────────────────
-    const GOOGLE_CLIENT_ID = 'YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com';
+    const GOOGLE_CLIENT_ID = '916893963118-1bu7l2rctucb87isdvv1h97n8athen0f.apps.googleusercontent.com';
 
     let googleData = null; // stores data from Google if used
 
