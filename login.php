@@ -16,38 +16,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
-    <style>
-        :root { --primary: #4f46e5; --bg: #f8fafc; }
-        * { margin:0; padding:0; box-sizing:border-box; font-family:'SF Pro Display',sans-serif; }
-        body { background:var(--bg); height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
-        .login-card { background:white; width:100%; max-width:450px; padding:40px; border-radius:24px; box-shadow:0 20px 25px -5px rgba(0,0,0,.1); text-align:center; }
-        .brand-icon { width:160px; height:80px; margin:0 auto 15px; display:flex; align-items:center; justify-content:center; overflow:hidden; }
-        .brand-icon img { width:100%; height:100%; object-fit:contain; }
-        h2 { color:#1e293b; margin-bottom:5px; }
-        p  { color:#64748b; margin-bottom:25px; }
-        .role-selector { display:flex; background:#f1f5f9; padding:5px; border-radius:12px; margin-bottom:25px; }
-        .role-btn { flex:1; padding:12px; border:none; border-radius:8px; cursor:pointer; font-weight:600; background:transparent; color:#64748b; transition:.3s; }
-        .role-btn.active { background:white; color:var(--primary); box-shadow:0 4px 6px -1px rgba(0,0,0,.1); }
-        .input-group { text-align:left; margin-bottom:20px; }
-        label { display:block; margin-bottom:8px; font-weight:500; color:#475569; }
-        input { width:100%; padding:16px; border:1px solid #e2e8f0; border-radius:12px; font-size:1rem; outline:none; transition:.2s; }
-        input:focus { border-color:var(--primary); outline:2px solid #c7d2fe; }
-        .login-btn { width:100%; padding:16px; background:var(--primary); color:white; border:none; border-radius:12px; font-size:1.1rem; font-weight:700; cursor:pointer; margin-top:10px; box-shadow:0 10px 15px -3px rgba(79,70,229,.3); transition:.2s; }
-        .login-btn:hover { opacity:.9; transform:translateY(-1px); }
-        /* Divider */
-        .divider { display:flex; align-items:center; gap:12px; margin:22px 0; color:#94a3b8; font-size:.85rem; }
-        .divider::before,.divider::after { content:''; flex:1; height:1px; background:#e2e8f0; }
-        /* Google Button */
-        .google-btn { width:100%; padding:14px 16px; background:white; color:#1e293b; border:1.5px solid #e2e8f0; border-radius:12px; font-size:1rem; font-weight:600; cursor:pointer; display:flex; align-items:center; justify-content:center; gap:12px; transition:.2s; }
-        .google-btn:hover { background:#f8fafc; border-color:#c7d2fe; box-shadow:0 2px 8px rgba(0,0,0,.08); }
-        .footer-link { margin-top:25px; color:#64748b; font-size:.9rem; }
-        .footer-link a { color:var(--primary); text-decoration:none; font-weight:600; }
-        /* Loading overlay */
-        #loadingOverlay { display:none; position:fixed; inset:0; background:rgba(255,255,255,.75); z-index:999; align-items:center; justify-content:center; flex-direction:column; gap:12px; }
-        #loadingOverlay.active { display:flex; }
-        .spinner { width:40px; height:40px; border:4px solid #e2e8f0; border-top-color:var(--primary); border-radius:50%; animation:spin .7s linear infinite; }
-        @keyframes spin { to { transform:rotate(360deg); } }
-    </style>
+    <link rel="stylesheet" href="login.css">
 </head>
 <body>
 
