@@ -24,8 +24,21 @@ if (isset($_GET['action'])) {
     }
 
     if ($action === 'all_branches') {
-        $stmt = $pdo->prepare("SELECT b.id, b.name, b.address, COALESCE(SUM(t.total), 0) AS sales_today, COUNT(t.id) AS orders_today FROM branches b LEFT JOIN transactions t ON t.branch_id = b.id AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY b.id, b.name, b.address ORDER BY b.id ASC");
-        $stmt->execute([$date]);
+        $yesterday = date('Y-m-d', strtotime($date . ' -1 day'));
+        $stmt = $pdo->prepare("
+            SELECT
+                b.id, b.name, b.address,
+                COALESCE(SUM(CASE WHEN DATE(t.created_at) = ?::date THEN t.total ELSE 0 END), 0) AS sales_today,
+                COUNT(CASE WHEN DATE(t.created_at) = ?::date THEN 1 END) AS orders_today,
+                COALESCE(SUM(CASE WHEN DATE(t.created_at) = ?::date THEN t.total ELSE 0 END), 0) AS sales_yesterday
+            FROM branches b
+            LEFT JOIN transactions t ON t.branch_id = b.id
+                AND t.status = 'completed'
+                AND DATE(t.created_at) IN (?::date, ?::date)
+            GROUP BY b.id, b.name, b.address
+            ORDER BY b.id ASC
+        ");
+        $stmt->execute([$date, $date, $yesterday, $date, $yesterday]);
         respond(['success' => true, 'data' => $stmt->fetchAll()]);
     }
 
@@ -835,18 +848,31 @@ if (isset($_GET['action'])) {
                 res.data.forEach(row => {
                     const key = Object.keys(branchIdMap).find(k => branchIdMap[k] === row.id);
                     if (!key) return;
-                    const rev = parseFloat(row.sales_today || 0);
-                    const ord = parseInt(row.orders_today || 0);
+                    const rev      = parseFloat(row.sales_today || 0);
+                    const ord      = parseInt(row.orders_today || 0);
+                    const prevRev  = parseFloat(row.sales_yesterday || 0);
                     totalRevenue += rev;
                     totalOrders  += ord;
                     if (rev > topRevenue) { topRevenue = rev; topBranch = branchInfo[key].name; }
+
+                    // Calculate growth vs yesterday
+                    let growth = '—';
+                    if (prevRev > 0) {
+                        const pct = ((rev - prevRev) / prevRev * 100).toFixed(1);
+                        growth = (pct >= 0 ? '+' : '') + pct + '%';
+                    } else if (rev > 0) {
+                        growth = '+100%';
+                    } else {
+                        growth = '0%';
+                    }
 
                     allBranchData[key] = {
                         ...branchInfo[key],
                         sales:    '₱ ' + rev.toLocaleString('en-PH', { minimumFractionDigits: 2 }),
                         salesRaw: rev,
                         orders:   ord,
-                        growth:   '—',
+                        growth,
+                        prevRev,
                     };
                 });
 
@@ -1017,7 +1043,16 @@ if (isset($_GET['action'])) {
             document.getElementById('home-branch-label').innerText   = b.name;
             document.getElementById('home-total-sales').innerText    = b.sales;
             document.getElementById('home-orders').innerText         = b.orders;
-            document.getElementById('home-growth').innerText         = b.growth;
+            const growthEl = document.getElementById('home-growth');
+            growthEl.innerText = b.growth;
+            growthEl.className = 'px-2.5 py-1 rounded-full font-bold ';
+            if (b.growth && b.growth.startsWith('+') && b.growth !== '+0%') {
+                growthEl.className += 'bg-emerald-400/30 text-emerald-200';
+            } else if (b.growth && b.growth.startsWith('-')) {
+                growthEl.className += 'bg-rose-400/30 text-rose-200';
+            } else {
+                growthEl.className += 'bg-white/20 text-indigo-100';
+            }
             document.getElementById('sales-branch-status').innerText = b.name;
             document.getElementById('live-branch-label').innerText   = b.name;
             // Restart live feed when branch changes
