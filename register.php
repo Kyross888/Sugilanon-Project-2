@@ -121,8 +121,8 @@
         </div>
 
         <div class="input-group" id="passwordGroup">
-            <label>Password <span id="passwordNote" style="color:#94a3b8;font-weight:400;font-size:.85rem;"></span></label>
-            <input type="password" name="password" id="password" placeholder="Create a strong password">
+            <label>Password <span id="passwordNote" style="color:#94a3b8;font-weight:400;font-size:.85rem;">(required)</span></label>
+            <input type="password" name="password" id="password" placeholder="Create a strong password" required>
         </div>
 
         <button type="submit" class="register-btn">Create Account</button>
@@ -169,9 +169,9 @@
             setField('email',      user.email       || '');
 
             // Password not needed when using Google
-            document.getElementById('password').required = false;
-            document.getElementById('password').placeholder = 'Leave blank — Google sign-in will be used';
-            document.getElementById('passwordNote').textContent = '(optional — you used Google)';
+            document.getElementById('password').required = true;
+            document.getElementById('password').placeholder = 'Create a strong password';
+            document.getElementById('passwordNote').textContent = '(required — used for email login too)';
         } catch (err) {
             alert('Could not fetch your Google info. Try again.');
         } finally {
