@@ -68,7 +68,10 @@ $options = [
 
 try {
     $pdo = new PDO($dsn, DB_USER, DB_PASS, $options);
-    $pdo->exec("SET TIME ZONE 'UTC'");
+    // ✅ FIX 1: Use Philippine timezone so CURRENT_DATE matches PH calendar day.
+    // Before this fix, UTC was used — at 8:00 AM PH time the UTC date rolls over
+    // and all "today's" sales would disappear from the dashboard.
+    $pdo->exec("SET TIME ZONE 'Asia/Manila'");
 } catch (PDOException $e) {
     http_response_code(500);
     header('Content-Type: application/json');
@@ -81,6 +84,18 @@ try {
 
 // ── Session helpers ──────────────────────────────────────────
 if (session_status() === PHP_SESSION_NONE) {
+    // ✅ FIX 2: Extend session lifetime to 24 hours.
+    // Default PHP session expires in ~24 minutes of inactivity, logging users
+    // out and causing the dashboard to show stale/empty data on return.
+    $sessionLifetime = 86400; // 24 hours in seconds
+    ini_set('session.gc_maxlifetime', $sessionLifetime);
+    session_set_cookie_params([
+        'lifetime' => $sessionLifetime,
+        'path'     => '/',
+        'secure'   => isset($_SERVER['HTTPS']),
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
     session_start();
 }
 
