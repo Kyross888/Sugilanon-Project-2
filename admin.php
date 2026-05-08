@@ -45,12 +45,20 @@ if (isset($_GET['action'])) {
 
     if ($action === 'branch') {
         $branchId = (int)($_GET['id'] ?? 0);
-        if (!$branchId) respond(['success' => false, 'error' => 'Branch ID required.'], 400);
-        $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE branch_id = ? AND DATE(created_at) = ?::date AND status = 'completed'");
-        $kpi->execute([$branchId, $date]);
-        $kpiRow = $kpi->fetch();
-        $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.branch_id = ? AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
-        $txns->execute([$branchId, $date]);
+        // Include NULL branch_id rows (transactions placed before branch was assigned)
+        if ($branchId) {
+            $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE (branch_id = ? OR branch_id IS NULL) AND DATE(created_at) = ?::date AND status = 'completed'");
+            $kpi->execute([$branchId, $date]);
+            $kpiRow = $kpi->fetch();
+            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE (t.branch_id = ? OR t.branch_id IS NULL) AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+            $txns->execute([$branchId, $date]);
+        } else {
+            $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE DATE(created_at) = ?::date AND status = 'completed'");
+            $kpi->execute([$date]);
+            $kpiRow = $kpi->fetch();
+            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+            $txns->execute([$date]);
+        }
         respond(['success' => true, 'kpi' => $kpiRow, 'transactions' => $txns->fetchAll()]);
     }
 
@@ -1285,7 +1293,7 @@ if (isset($_GET['action'])) {
                 }
 
                 // Show latest time
-                const latest = new Date(txns[0].created_at + (txns[0].created_at.includes('+') ? '' : '+00:00'));
+                const latest = parseUTC(txns[0].created_at);
                 document.getElementById('live-kpi-latest').textContent =
                     latest.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
 
