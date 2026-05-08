@@ -439,7 +439,8 @@ const API_BASE = '';
 
 function parseUTC(ts) {
     if (!ts) return new Date(NaN);
-    return new Date(ts.replace(' ', 'T') + 'Z');
+    var s = ts.replace(' ', 'T').replace(/[+Z].*$/, '');
+    return new Date(s + '+08:00');
 }
 
 async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
