@@ -969,7 +969,7 @@ if (isset($_GET['action'])) {
                 }
 
                 const rows = res.transactions.map(t => {
-                    const dt   = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
+                    const dt   = parseUTC(t.created_at);
                     const time = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const date = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
                     const typeColor   = t.order_type === 'Dine-in' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
@@ -1028,7 +1028,7 @@ if (isset($_GET['action'])) {
                     return;
                 }
                 tbody.innerHTML = res.transactions.map(t => {
-                    const dt        = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
+                    const dt        = parseUTC(t.created_at);
                     const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
                     return `<tr class="hover:bg-slate-50 transition-colors">
@@ -1216,11 +1216,11 @@ if (isset($_GET['action'])) {
 
                 const headers = ['Branch', 'Date', 'Time', 'Reference', 'Items', 'Type', 'Amount (PHP)'];
                 const rows    = txns.map(t => {
-                    const dt = new Date(t.created_at);
+                    const dt = parseUTC(t.created_at);
                     return [
                         b.name,
-                        dt.toLocaleDateString('en-PH'),
-                        dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }),
+                        dt.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }),
+                        dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' }),
                         t.reference_no,
                         t.items_summary || '',
                         t.order_type,
@@ -1294,7 +1294,7 @@ if (isset($_GET['action'])) {
                 lastTxnId = txns[0].id;
 
                 feed.innerHTML = txns.slice(0, 10).map((t, i) => {
-                    const dt     = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
+                    const dt     = parseUTC(t.created_at);
                     const time   = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const isNew  = i === 0;
                     return `<div class="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] border ${isNew ? 'border-indigo-300 dark:border-indigo-500 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20' : 'border-slate-200 dark:border-slate-700 shadow-sm'}
