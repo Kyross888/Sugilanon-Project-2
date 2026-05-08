@@ -705,15 +705,15 @@ if (isset($_GET['action'])) {
                     <div class="grid grid-cols-3 gap-4 w-full mb-8">
                         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
                             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Today's Sales</p>
-                            <p id="live-kpi-sales" class="text-lg font-black text-emerald-600 dark:text-emerald-400">₱0.00</p>
+                          <p id="live-kpi-sales" class="text-sm font-black text-emerald-600 dark:text-emerald-400 break-all leading-tight">₱0.00</p>
                         </div>
                         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
                             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Orders</p>
-                            <p id="live-kpi-orders" class="text-lg font-black text-indigo-600 dark:text-indigo-400">0</p>
+                           <p id="live-kpi-orders" class="text-sm font-black text-indigo-600 dark:text-indigo-400 break-all leading-tight">0</p>
                         </div>
                         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
                             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Latest</p>
-                            <p id="live-kpi-latest" class="text-lg font-black text-slate-800 dark:text-white">—</p>
+                           <p id="live-kpi-latest" class="text-sm font-black text-slate-800 dark:text-white break-all leading-tight">—</p>
                         </div>
                     </div>
 
