@@ -20,14 +20,14 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
     $params       = [$date_from, $date_to];
     if ($branch_id) { $branchFilter = " AND t.branch_id = ?"; $params[] = (int)$branch_id; }
 
-    $kpi = $pdo->prepare("SELECT COALESCE(SUM(t.total), 0) AS total_revenue, COUNT(t.id) AS total_orders, COALESCE(SUM(t.discount + t.coupon_discount), 0) AS total_discounts FROM transactions t WHERE (t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date BETWEEN ?::date AND ?::date AND t.status = 'completed' $branchFilter");
+    $kpi = $pdo->prepare("SELECT COALESCE(SUM(t.total), 0) AS total_revenue, COUNT(t.id) AS total_orders, COALESCE(SUM(t.discount + t.coupon_discount), 0) AS total_discounts FROM transactions t WHERE DATE(t.created_at) BETWEEN ?::date AND ?::date AND t.status = 'completed' $branchFilter");
     $kpi->execute($params);
     $summary = $kpi->fetch();
 
-    $rows = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.subtotal, t.discount, t.coupon_discount, t.total, (t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') AS created_at, u.first_name, u.last_name, (SELECT COUNT(*) FROM transaction_items WHERE transaction_id = t.id) AS item_count FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE (t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date BETWEEN ?::date AND ?::date AND t.status = 'completed' $branchFilter ORDER BY t.created_at DESC");
+    $rows = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.subtotal, t.discount, t.coupon_discount, t.total, t.created_at, u.first_name, u.last_name, (SELECT COUNT(*) FROM transaction_items WHERE transaction_id = t.id) AS item_count FROM transactions t LEFT JOIN users u ON t.user_id = u.id WHERE DATE(t.created_at) BETWEEN ?::date AND ?::date AND t.status = 'completed' $branchFilter ORDER BY t.created_at DESC");
     $rows->execute($params);
 
-    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty, p.image_path, p.icon FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id LEFT JOIN products p ON ti.product_id = p.id WHERE (t.created_at AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date BETWEEN ?::date AND ?::date AND t.status = 'completed' $branchFilter GROUP BY ti.product_name, p.image_path, p.icon ORDER BY qty DESC LIMIT 1");
+    $best = $pdo->prepare("SELECT ti.product_name, SUM(ti.quantity) AS qty, p.image_path, p.icon FROM transaction_items ti JOIN transactions t ON ti.transaction_id = t.id LEFT JOIN products p ON ti.product_id = p.id WHERE DATE(t.created_at) BETWEEN ?::date AND ?::date AND t.status = 'completed' $branchFilter GROUP BY ti.product_name, p.image_path, p.icon ORDER BY qty DESC LIMIT 1");
     $best->execute($params);
     $bestSeller = $best->fetch();
 
@@ -520,11 +520,12 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
 
             // Table
             tbody.innerHTML = '';
-            if (!transactions.length) {
+            const txnList = Array.isArray(transactions) ? transactions : [];
+            if (!txnList.length) {
                 tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:30px;color:#718096;">No transactions for this date.</td></tr>';
                 return;
             }
-            transactions.forEach(t => {
+            txnList.forEach(t => {
                 const dt = parseUTC(t.created_at);
                 const timeStr = dt.toLocaleTimeString('en-PH', {
                     hour: '2-digit',
