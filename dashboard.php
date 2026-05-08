@@ -382,8 +382,16 @@ if (isset($_GET['action'])) {
         </div>
     </div>
 
-    <script src="js/api.js"></script>
+    <script src="api.js"></script>
     <script>
+        // Inline fallback: parse DB timestamp as PH time (UTC+8)
+        // Works even if api.js path is wrong or fails to load
+        if (typeof parseUTC === 'undefined') {
+            function parseUTC(ts) {
+                if (!ts) return new Date(NaN);
+                return new Date(ts.replace(' ', 'T') + 'Z');
+            }
+        }
         function toggleSidebar() {
             document.getElementById('sidebar').classList.toggle('collapsed');
         }
@@ -508,7 +516,7 @@ if (isset($_GET['action'])) {
     </script>
 
     <!-- PWA Registration -->
-    <script src="js/pwa.js"></script>
+    <script src="pwa.js"></script>
 </body>
 
 </html>
