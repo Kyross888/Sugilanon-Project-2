@@ -10,7 +10,10 @@ const API_BASE = '';
 // converts it correctly to PH time for display.
 function parseUTC(ts) {
     if (!ts) return new Date(NaN);
-    return new Date(ts.replace(' ', 'T') + 'Z');
+    // DB returns timestamps in PHT already (Asia/Manila connection)
+    // Treat as local PH time by stripping any suffix and NOT adding Z
+    var s = ts.replace(' ', 'T').replace(/[+Z].*$/, '');
+    return new Date(s + '+08:00');
 }
 
 // ── Fetch with timeout ────────────────────────────────────────
