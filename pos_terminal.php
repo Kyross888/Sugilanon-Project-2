@@ -1517,14 +1517,25 @@ function addToCart(productId, name, price) {
             document.getElementById('orderOverlay').style.display = 'flex';
         }
 
+        // ✅ FIX: Guard flag — prevents duplicate transactions when button is clicked
+        //         multiple times while the network request is still in progress.
+        let isProcessingOrder = false;
+
         async function closeOrder() {
+            // Block if already saving — this is what caused duplicate transactions
+            if (isProcessingOrder) return;
+            isProcessingOrder = true;
+
+            // Disable button & show loading text so user knows it's working
+            const btn = document.querySelector('#orderOverlay .btn-place');
+            if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
             const subtotalRaw = cart.reduce((s, i) => s + i.price * i.quantity, 0);
             const discountRaw = document.getElementById('applyDiscount').checked ? subtotalRaw * 0.20 : 0;
             let couponDiscRaw = 0;
             if (isCouponApplied) couponDiscRaw = Math.min(subtotalRaw - discountRaw, 500);
             const totalRaw = Math.max(0, subtotalRaw - discountRaw - couponDiscRaw);
 
-            // Only send to DB if we're actually connected to it
             if (usingDB) {
                 const payload = {
                     items: cart.map(i => ({
@@ -1541,14 +1552,22 @@ function addToCart(productId, name, price) {
                     total: totalRaw,
                 };
 
-                const res = await api.orders.place(payload);
-                if (!res.success) {
-                    alert('Order failed: ' + (res.error || 'Unknown error'));
+                try {
+                    const res = await api.orders.place(payload);
+                    if (!res.success) {
+                        alert('Order failed: ' + (res.error || 'Unknown error'));
+                        if (btn) { btn.disabled = false; btn.textContent = 'Start New Transaction'; }
+                        isProcessingOrder = false;
+                        return;
+                    }
+                    document.getElementById('order-id').innerText = res.reference_no || 'New Order';
+                } catch (err) {
+                    alert('Network error. Please try again.');
+                    if (btn) { btn.disabled = false; btn.textContent = 'Start New Transaction'; }
+                    isProcessingOrder = false;
                     return;
                 }
-                document.getElementById('order-id').innerText = res.reference_no || 'New Order';
             } else {
-                // Fallback mode — just show a random reference
                 document.getElementById('order-id').innerText = `Order #${Math.floor(1000 + Math.random() * 9000)}`;
             }
 
@@ -1558,10 +1577,14 @@ function addToCart(productId, name, price) {
             document.getElementById('couponCode').value = '';
             document.getElementById('applyDiscount').checked = false;
             document.getElementById('orderOverlay').style.display = 'none';
+            if (btn) { btn.disabled = false; btn.textContent = 'Start New Transaction'; }
+            isProcessingOrder = false;
             renderCart();
 
-            // Refresh grid so stock counts update (DB mode only)
-            if (usingDB) await loadProducts();
+            // ✅ FIX: Load products in background — do NOT await.
+            //         This makes the UI reset instantly instead of waiting for
+            //         the product reload (which caused the laggy/slow feeling).
+            if (usingDB) loadProducts();
         }
 
         // Peso formatter
