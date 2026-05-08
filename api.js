@@ -4,11 +4,15 @@
 
 const API_BASE = '';
 
-// ── Parse DB timestamp as UTC (DB stores UTC, no timezone marker) ──
+// ── Parse DB timestamp as Philippine local time (Asia/Manila, UTC+8) ──
+// ✅ FIX: DB timezone changed to Asia/Manila. Timestamps no longer need the
+// fake 'Z' suffix — appending it was incorrectly shifting PH times to UTC,
+// making times appear 8 hours earlier than they actually were.
 function parseUTC(ts) {
     if (!ts) return new Date(NaN);
-    // Replace space with T and append Z so JS treats it as UTC
-    return new Date(ts.replace(' ', 'T') + 'Z');
+    // Replace space separator with T (ISO 8601) but do NOT append 'Z'.
+    // JS will treat it as local time; the server timezone is now PH time.
+    return new Date(ts.replace(' ', 'T'));
 }
 
 // ── Fetch with timeout ────────────────────────────────────────
