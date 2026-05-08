@@ -525,7 +525,7 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
                 return;
             }
             transactions.forEach(t => {
-                const dt = new Date(t.created_at);
+                const dt = parseUTC(t.created_at);
                 const timeStr = dt.toLocaleTimeString('en-PH', {
                     hour: '2-digit',
                     minute: '2-digit',
