@@ -45,20 +45,12 @@ if (isset($_GET['action'])) {
 
     if ($action === 'branch') {
         $branchId = (int)($_GET['id'] ?? 0);
-        // Include NULL branch_id rows (transactions placed before branch was assigned)
-        if ($branchId) {
-            $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE (branch_id = ? OR branch_id IS NULL) AND DATE(created_at) = ?::date AND status = 'completed'");
-            $kpi->execute([$branchId, $date]);
-            $kpiRow = $kpi->fetch();
-            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE (t.branch_id = ? OR t.branch_id IS NULL) AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
-            $txns->execute([$branchId, $date]);
-        } else {
-            $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE DATE(created_at) = ?::date AND status = 'completed'");
-            $kpi->execute([$date]);
-            $kpiRow = $kpi->fetch();
-            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
-            $txns->execute([$date]);
-        }
+        if (!$branchId) respond(['success' => false, 'error' => 'Branch ID required.'], 400);
+        $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE branch_id = ? AND DATE(created_at) = ?::date AND status = 'completed'");
+        $kpi->execute([$branchId, $date]);
+        $kpiRow = $kpi->fetch();
+        $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.branch_id = ? AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+        $txns->execute([$branchId, $date]);
         respond(['success' => true, 'kpi' => $kpiRow, 'transactions' => $txns->fetchAll()]);
     }
 
@@ -484,6 +476,7 @@ if (isset($_GET['action'])) {
                         <div class="flex items-center gap-2 mb-3">
                             <span class="w-2 h-2 bg-emerald-400 rounded-full animate-pulse"></span>
                             <p id="banner-date-label" class="text-slate-400 text-[10px] font-bold uppercase tracking-widest">All Branches Combined — Today</p>
+                            <span id="home-last-updated" class="text-slate-600 text-[9px] ml-2"></span>
                         </div>
                         <h2 id="all-branches-total" class="text-4xl md:text-5xl font-black text-white tracking-tight mb-1">₱ 0.00</h2>
                         <p class="text-slate-400 text-sm font-medium">Total revenue across all <span id="all-branches-count" class="text-indigo-400 font-bold">8</span> branches</p>
@@ -705,15 +698,15 @@ if (isset($_GET['action'])) {
                     <div class="grid grid-cols-3 gap-4 w-full mb-8">
                         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
                             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Today's Sales</p>
-                          <p id="live-kpi-sales" class="text-sm font-black text-emerald-600 dark:text-emerald-400 break-all leading-tight">₱0.00</p>
+                            <p id="live-kpi-sales" class="text-lg font-black text-emerald-600 dark:text-emerald-400">₱0.00</p>
                         </div>
                         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
                             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Orders</p>
-                           <p id="live-kpi-orders" class="text-sm font-black text-indigo-600 dark:text-indigo-400 break-all leading-tight">0</p>
+                            <p id="live-kpi-orders" class="text-lg font-black text-indigo-600 dark:text-indigo-400">0</p>
                         </div>
                         <div class="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 text-center shadow-sm">
                             <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">Latest</p>
-                           <p id="live-kpi-latest" class="text-sm font-black text-slate-800 dark:text-white break-all leading-tight">—</p>
+                            <p id="live-kpi-latest" class="text-lg font-black text-slate-800 dark:text-white">—</p>
                         </div>
                     </div>
 
@@ -781,17 +774,8 @@ if (isset($_GET['action'])) {
         </div>
     </div>
 
-    <script src="api.js"></script>
+    <script src="js/api.js"></script>
     <script>
-        // Inline fallback: parse DB timestamp as PH time (UTC+8)
-        // Works even if api.js path is wrong or fails to load
-        if (typeof parseUTC === 'undefined') {
-            function parseUTC(ts) {
-                if (!ts) return new Date(NaN);
-                var s = ts.replace(' ', 'T').replace(/[+Z].*$/, '');
-                return new Date(s + '+08:00');
-            }
-        }
         // ── Branch Maps ────────────────────────────────────────
         const branchIdMap = {
             festive: 1, sm_central: 2, gen_luna: 3, jaro: 4,
@@ -962,6 +946,13 @@ if (isset($_GET['action'])) {
                 applyBranchData();
                 await loadBranchTransactions(currentBranch);
 
+                // Update last refreshed timestamp
+                const updatedEl = document.getElementById('home-last-updated');
+                if (updatedEl) {
+                    const now = new Date();
+                    updatedEl.textContent = '· Updated ' + now.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', second: '2-digit', timeZone: 'Asia/Manila' });
+                }
+
             } catch (e) {
                 console.error('loadAllBranchesFromDB:', e);
             }
@@ -986,7 +977,7 @@ if (isset($_GET['action'])) {
                 }
 
                 const rows = res.transactions.map(t => {
-                    const dt   = parseUTC(t.created_at);
+                    const dt   = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
                     const time = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const date = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
                     const typeColor   = t.order_type === 'Dine-in' ? 'bg-blue-100 text-blue-700' : 'bg-green-100 text-green-700';
@@ -1045,7 +1036,7 @@ if (isset($_GET['action'])) {
                     return;
                 }
                 tbody.innerHTML = res.transactions.map(t => {
-                    const dt        = parseUTC(t.created_at);
+                    const dt        = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
                     const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
                     return `<tr class="hover:bg-slate-50 transition-colors">
@@ -1163,10 +1154,26 @@ if (isset($_GET['action'])) {
                 </div>`).join('');
         }
 
-        document.addEventListener('DOMContentLoaded', adminBoot);
+        document.addEventListener('DOMContentLoaded', () => {
+            adminBoot();
+            startHomeRefresh(); // start auto-refresh on load
+        });
 
         // ── SPA Routing ────────────────────────────────────────
         let chartsRendered = false;
+
+        let homeRefreshInterval = null;
+
+        function startHomeRefresh() {
+            stopHomeRefresh();
+            homeRefreshInterval = setInterval(() => {
+                loadAllBranchesFromDB();
+            }, 30000); // refresh every 30 seconds
+        }
+
+        function stopHomeRefresh() {
+            if (homeRefreshInterval) { clearInterval(homeRefreshInterval); homeRefreshInterval = null; }
+        }
 
         function switchPage(pageId) {
             document.querySelectorAll('.page-view').forEach(v => v.classList.remove('active'));
@@ -1176,6 +1183,7 @@ if (isset($_GET['action'])) {
             if (al) { al.classList.remove('is-inactive'); al.classList.add('is-active'); }
             if (pageId === 'stats' && !chartsRendered) { initCharts(); loadTopMoving(); chartsRendered = true; }
             if (pageId === 'live') { startLiveFeed(); } else { stopLiveFeed(); }
+            if (pageId === 'home' || pageId === 'admin') { startHomeRefresh(); } else { stopHomeRefresh(); }
         }
 
         // ── Dark Mode ──────────────────────────────────────────
@@ -1233,11 +1241,11 @@ if (isset($_GET['action'])) {
 
                 const headers = ['Branch', 'Date', 'Time', 'Reference', 'Items', 'Type', 'Amount (PHP)'];
                 const rows    = txns.map(t => {
-                    const dt = parseUTC(t.created_at);
+                    const dt = new Date(t.created_at);
                     return [
                         b.name,
-                        dt.toLocaleDateString('en-PH', { timeZone: 'Asia/Manila' }),
-                        dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' }),
+                        dt.toLocaleDateString('en-PH'),
+                        dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit' }),
                         t.reference_no,
                         t.items_summary || '',
                         t.order_type,
@@ -1302,7 +1310,7 @@ if (isset($_GET['action'])) {
                 }
 
                 // Show latest time
-                const latest = parseUTC(txns[0].created_at);
+                const latest = new Date(txns[0].created_at + (txns[0].created_at.includes('+') ? '' : '+00:00'));
                 document.getElementById('live-kpi-latest').textContent =
                     latest.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
 
@@ -1311,7 +1319,7 @@ if (isset($_GET['action'])) {
                 lastTxnId = txns[0].id;
 
                 feed.innerHTML = txns.slice(0, 10).map((t, i) => {
-                    const dt     = parseUTC(t.created_at);
+                    const dt     = new Date(t.created_at + (t.created_at.includes('+') ? '' : '+00:00'));
                     const time   = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                     const isNew  = i === 0;
                     return `<div class="bg-white dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] border ${isNew ? 'border-indigo-300 dark:border-indigo-500 shadow-lg shadow-indigo-100 dark:shadow-indigo-900/20' : 'border-slate-200 dark:border-slate-700 shadow-sm'}
@@ -1529,6 +1537,6 @@ if (isset($_GET['action'])) {
     </script>
 
     <!-- PWA Registration -->
-    <script src="pwa.js"></script>
+    <script src="js/pwa.js"></script>
 </body>
 </html>
