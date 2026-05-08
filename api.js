@@ -5,17 +5,12 @@
 const API_BASE = '';
 
 // ── Parse DB timestamp as Philippine local time (Asia/Manila, UTC+8) ──
-// The DB stores timestamps in UTC internally (PostgreSQL timestamptz).
-// SET TIME ZONE 'Asia/Manila' on the connection causes PostgreSQL to
-// return timestamps already converted to PHT (+08:00). We append the
-// explicit offset so the browser always interprets the value as PH time
-// regardless of the browser's own locale/timezone.
+// Supabase stores timestamps in UTC. Appending Z tells the browser to
+// treat the value as UTC, then toLocaleTimeString with timeZone Asia/Manila
+// converts it correctly to PH time for display.
 function parseUTC(ts) {
     if (!ts) return new Date(NaN);
-    // Normalize separator and strip any existing timezone suffix.
-    let normalized = ts.replace(' ', 'T').replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
-    // Append Philippine Standard Time offset (+08:00).
-    return new Date(normalized + '+08:00');
+    return new Date(ts.replace(' ', 'T') + 'Z');
 }
 
 // ── Fetch with timeout ────────────────────────────────────────
