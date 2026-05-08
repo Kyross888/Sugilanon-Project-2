@@ -5,14 +5,17 @@
 const API_BASE = '';
 
 // ── Parse DB timestamp as Philippine local time (Asia/Manila, UTC+8) ──
-// ✅ FIX: DB timezone changed to Asia/Manila. Timestamps no longer need the
-// fake 'Z' suffix — appending it was incorrectly shifting PH times to UTC,
-// making times appear 8 hours earlier than they actually were.
+// The DB stores timestamps in UTC internally (PostgreSQL timestamptz).
+// SET TIME ZONE 'Asia/Manila' on the connection causes PostgreSQL to
+// return timestamps already converted to PHT (+08:00). We append the
+// explicit offset so the browser always interprets the value as PH time
+// regardless of the browser's own locale/timezone.
 function parseUTC(ts) {
     if (!ts) return new Date(NaN);
-    // Replace space separator with T (ISO 8601) but do NOT append 'Z'.
-    // JS will treat it as local time; the server timezone is now PH time.
-    return new Date(ts.replace(' ', 'T'));
+    // Normalize separator and strip any existing timezone suffix.
+    let normalized = ts.replace(' ', 'T').replace(/([+-]\d{2}:?\d{2}|Z)$/, '');
+    // Append Philippine Standard Time offset (+08:00).
+    return new Date(normalized + '+08:00');
 }
 
 // ── Fetch with timeout ────────────────────────────────────────
