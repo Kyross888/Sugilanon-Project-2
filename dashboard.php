@@ -78,9 +78,7 @@ if (isset($_GET['action'])) {
 
     <style>
         /* --- THEME VARIABLES --- */
-        /* Centralized color palette. Changing a hex code here updates the entire dashboard */
-        
-         :root {
+        :root {
             --primary: #5a67d8;
             --primary-hover: #434190;
             --bg: #f4f6f9;
@@ -91,27 +89,24 @@ if (isset($_GET['action'])) {
             --success: #38a169;
             --border: #e2e8f0;
         }
-        /* CSS Reset to ensure identical rendering across different web browsers */
-        
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
             font-family: 'Segoe UI', system-ui, sans-serif;
         }
-        /* Main Body: Uses Flexbox to place the sidebar on the left and content on the right */
-        
+
         body {
             background: var(--bg);
             display: flex;
             height: 100vh;
             width: 100vw;
             overflow: hidden;
-            /* Prevents the whole window from scrolling */
             color: var(--text-dark);
         }
-        /* --- SIDEBAR NAVIGATION --- */
-        
+
+        /* --- SIDEBAR --- */
         .sidebar {
             width: 250px;
             background: var(--white);
@@ -120,37 +115,38 @@ if (isset($_GET['action'])) {
             padding: 20px;
             border-right: 1px solid var(--border);
             transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            /* Smooth slide animation */
             z-index: 100;
             flex-shrink: 0;
         }
-        /* Toggled via JS to hide text and shrink the sidebar width */
-        
+
         .sidebar.collapsed {
             width: 80px;
         }
-        
-     .brand {
-    margin-bottom: 30px;
-    cursor: pointer;
-    text-align: center;
-}
-.brand img {
-    max-width: 100%;
-    border-radius: 8px;
-    transition: 0.3s;
-}
-.sidebar.collapsed .brand img {
-    width: 40px;
-}
+
+        .brand {
+            margin-bottom: 30px;
+            cursor: pointer;
+            text-align: center;
+        }
+
+        .brand img {
+            max-width: 100%;
+            border-radius: 8px;
+            transition: 0.3s;
+        }
+
+        .sidebar.collapsed .brand img {
+            width: 40px;
+        }
+
         .nav-links {
             list-style: none;
         }
-        
+
         .nav-links li {
             margin-bottom: 10px;
         }
-        
+
         .nav-links a {
             text-decoration: none;
             color: var(--text-light);
@@ -160,35 +156,32 @@ if (isset($_GET['action'])) {
             border-radius: 8px;
             transition: 0.2s;
             white-space: nowrap;
-            /* Prevents text from breaking onto a new line when collapsing */
         }
-        
+
         .nav-links a:hover,
         .nav-links a.active {
             background: var(--primary);
             color: white;
         }
-        
+
         .nav-links i {
             min-width: 30px;
             font-size: 18px;
         }
-        /* Hides link text completely when sidebar is collapsed */
-        
+
         .sidebar.collapsed .nav-links span {
             display: none;
         }
-        /* --- MAIN CONTENT AREA --- */
-        
+
+        /* --- MAIN CONTENT --- */
         .main-content {
             flex-grow: 1;
-            /* Takes up all remaining screen space */
             display: flex;
             flex-direction: column;
             min-width: 0;
             overflow: hidden;
         }
-        
+
         .header {
             background: white;
             padding: 15px 30px;
@@ -200,24 +193,21 @@ if (isset($_GET['action'])) {
             height: 70px;
             gap: 20px;
         }
-        /* The area that actually scrolls up and down */
-        
+
         .content {
             padding: 30px;
             overflow-y: auto;
             flex-grow: 1;
         }
-        /* --- DASHBOARD WIDGETS --- */
-        /* Top KPI (Key Performance Indicator) Cards using CSS Grid */
-        
+
+        /* --- CARDS --- */
         .grid-cards {
             display: grid;
-            /* Creates as many 220px columns as will fit, then wraps the rest to the next row */
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
             gap: 20px;
             margin-bottom: 30px;
         }
-        
+
         .card {
             background: var(--white);
             padding: 20px;
@@ -225,83 +215,121 @@ if (isset($_GET['action'])) {
             border: 1px solid var(--border);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
         }
-        
+
         .card h3 {
             color: var(--text-light);
             font-size: 14px;
             text-transform: uppercase;
             margin-bottom: 10px;
         }
-        
+
         .card .number {
             font-size: 28px;
             font-weight: bold;
             color: var(--text-dark);
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
-        /* Charts Layout */
-        
+
+        /* --- CHARTS --- */
         .analytics-container {
             display: grid;
-            /* First chart gets 2 parts of the space, second chart gets 1 part (2/3 vs 1/3) */
             grid-template-columns: 2fr 1fr;
             gap: 20px;
         }
-        /* Wrapper required by Chart.js to maintain aspect ratio and sizing */
-        
+
         .chart-wrapper {
             position: relative;
             height: 300px;
             width: 100%;
         }
-        /* --- MOBILE RESPONSIVENESS --- */
-        /* Tablets & Mobile Phones */
-        
+
+        /* --- RESPONSIVE BREAKPOINTS --- */
+
+        /* Tablets: stack charts vertically */
+        @media (max-width: 992px) {
+            .analytics-container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Mobile: top nav bar instead of sidebar */
         @media (max-width: 768px) {
             body {
                 flex-direction: column;
-                /* Stack sidebar on top of main content */
+                height: auto;
+                min-height: 100vh;
+                overflow: auto;
             }
+
             .sidebar {
-                width: 100%;
+                width: 100% !important;
                 height: auto;
                 flex-direction: row;
-                /* Horizontal scrollable nav bar */
                 padding: 10px;
                 border-right: none;
                 border-bottom: 1px solid var(--border);
+                overflow-x: auto;
             }
+
             .brand {
                 display: none;
             }
+
             .nav-links {
                 display: flex;
                 width: 100%;
-                overflow-x: auto;
                 gap: 5px;
             }
+
             .nav-links li {
                 margin-bottom: 0;
+                flex-shrink: 0;
             }
+
             .nav-links a span {
                 display: none;
-                /* Only show icons on small screens */
             }
+
+            .nav-links i {
+                min-width: unset;
+            }
+
+            .main-content {
+                overflow: visible;
+            }
+
+            .content {
+                overflow-y: visible;
+                padding: 15px;
+            }
+
             .header {
                 flex-direction: column;
                 align-items: flex-start;
                 height: auto;
                 padding: 15px;
             }
+
+            .grid-cards {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 12px;
+                margin-bottom: 16px;
+            }
+
+            .card .number {
+                font-size: 22px;
+            }
         }
-        /* Medium screens (Small tablets/Laptops) */
-        
-        @media (max-width: 992px) {
-            .analytics-container {
+
+        /* Small phones: single column */
+        @media (max-width: 400px) {
+            .grid-cards {
                 grid-template-columns: 1fr;
-                /* Stack the two charts vertically */
             }
         }
     </style>
+
     <script>
         (function() {
             var s = localStorage.getItem("pos_theme");
@@ -519,5 +547,4 @@ if (isset($_GET['action'])) {
     <!-- PWA Registration -->
     <script src="pwa.js"></script>
 </body>
-
 </html>
