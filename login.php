@@ -14,6 +14,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Login - POS System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <link rel="stylesheet" href="login.css">
@@ -55,7 +56,12 @@
         </div>
         <div class="input-group">
             <label>Password</label>
-            <input type="password" placeholder="password" required>
+            <div style="position: relative;">
+                <input type="password" id="passwordInput" placeholder="password" required style="width: 100%; padding-right: 48px; box-sizing: border-box;">
+                <button type="button" onclick="togglePass()" style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 42px; height: 100%; background: #1e1e2e; border: none; border-radius: 0 8px 8px 0; cursor: pointer; display: flex; align-items: center; justify-content: center;">
+                    <i class="ti ti-eye" id="eyeIcon" style="font-size: 18px; color: #fff;"></i>
+                </button>
+            </div>
         </div>
         <button type="submit" class="login-btn">Sign In</button>
     </form>
@@ -78,6 +84,18 @@
         currentRole = role;
         document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
+    }
+
+    function togglePass() {
+        const input = document.getElementById('passwordInput');
+        const icon = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'ti ti-eye-off';
+        } else {
+            input.type = 'password';
+            icon.className = 'ti ti-eye';
+        }
     }
 
     function signInWithGoogle() {
