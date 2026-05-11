@@ -14,6 +14,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Create Account - POS System</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
     <!-- Google Identity Services -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
     <style>
@@ -122,7 +123,12 @@
 
         <div class="input-group" id="passwordGroup">
             <label>Password <span id="passwordNote" style="color:#94a3b8;font-weight:400;font-size:.85rem;">(required)</span></label>
-            <input type="password" name="password" id="password" placeholder="Create a strong password" required>
+            <div style="position: relative;">
+                <input type="password" name="password" id="password" placeholder="Create a strong password" required style="width: 100%; padding-right: 44px; box-sizing: border-box;">
+                <button type="button" onclick="togglePass()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+                    <i class="ti ti-eye" id="eyeIcon" style="font-size: 20px;"></i>
+                </button>
+            </div>
         </div>
 
         <button type="submit" class="register-btn">Create Account</button>
@@ -139,6 +145,18 @@
     const GOOGLE_CLIENT_ID = '916893963118-1bu7l2rctucb87isdvv1h97n8athen0f.apps.googleusercontent.com';
 
     let googleData = null; // stores data from Google if used
+
+    function togglePass() {
+        const input = document.getElementById('password');
+        const icon = document.getElementById('eyeIcon');
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.className = 'ti ti-eye-off';
+        } else {
+            input.type = 'password';
+            icon.className = 'ti ti-eye';
+        }
+    }
 
     function signUpWithGoogle() {
         if (GOOGLE_CLIENT_ID.startsWith('YOUR_')) {
