@@ -57,9 +57,9 @@
         <div class="input-group">
             <label>Password</label>
             <div style="position: relative;">
-                <input type="password" id="passwordInput" placeholder="password" required style="width: 100%; padding-right: 48px; box-sizing: border-box;">
-                <button type="button" onclick="togglePass()" style="position: absolute; right: 0; top: 50%; transform: translateY(-50%); width: 42px; height: 100%; background: #1e1e2e; border: none; border-radius: 0 8px 8px 0; cursor: pointer; display: flex; align-items: center; justify-content: center;">
-                    <i class="ti ti-eye" id="eyeIcon" style="font-size: 18px; color: #fff;"></i>
+                <input type="password" id="passwordInput" placeholder="password" required style="width: 100%; padding-right: 44px; box-sizing: border-box;">
+                <button type="button" onclick="togglePass()" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; color: #94a3b8;">
+                    <i class="ti ti-eye" id="eyeIcon" style="font-size: 20px;"></i>
                 </button>
             </div>
         </div>
