@@ -35,4 +35,4 @@ AddType image/webp                  .webp
 RewriteEngine On
 
 # Redirect bare root to login
-RewriteRule ^$ /login.php [R=302,L]
+RewriteRule ^$ https://sugilanon-project-2-production.up.railway.app/login.php [R=302,L]
