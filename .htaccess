@@ -1,7 +1,7 @@
 Options -Indexes
 
 # ── Redirect root to login page ─────────────────────────────
-DirectoryIndex login.php index.php
+DirectoryIndex index.php
 
 # ── MIME types required for PWA ─────────────────────────────
 AddType application/manifest+json   .json
