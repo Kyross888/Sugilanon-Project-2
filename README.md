@@ -12,7 +12,7 @@ a classic Ilonggo restaurant with branches across Iloilo City.
 - 📈 **Sales Reports & Analytics** — Revenue trends and order source breakdowns
 - 🔐 **Authentication** — Role-based login (admin/staff) with Google Sign-In support
 - 🏪 **Multi-Branch Support** — Manage 8 branches across Iloilo City
-- 📱 **PWA Ready** — Installable as a mobile/desktop app with offline support
+- 📱 **PWA Ready** — Installable as a mobile/desktop app 
 
 ## Tech Stack
 
