@@ -1,4 +1,4 @@
-# Luna's POS — Ilonggo Legacy 🍲
+# Luna's POS — Ilonggo Legacy 
 
 A web-based Point of Sale (POS) system built for **Luna's Arrozcaldo**, 
 a classic Ilonggo restaurant with branches across Iloilo City.
