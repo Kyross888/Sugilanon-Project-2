@@ -31,7 +31,7 @@ After logging in as **Staff** or **Admin**, navigate to the **POS Terminal** fro
 
 ## 4.5 Processing Payment
 1. Review the order summary (items, subtotal, tax, total).
-2. Select the **payment method**: Cash, GCash, or Card.
+2. Select the **payment method**: Cash, GCash,.
 3. Enter the **amount tendered** (for cash payments).
 4. Click **Charge** to complete the transaction.
 5. The system will display the **change** and generate a receipt.
