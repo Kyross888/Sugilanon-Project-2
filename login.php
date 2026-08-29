@@ -81,13 +81,14 @@ if (!empty($_SESSION['user'])) {
         <span>Don't have an account? <a href="register.php">Create Account</a></span>
     </div>
 
-    <div class="install-app-row" id="installAppRow" style="display:none;">
-        <button type="button" class="install-btn" id="installAppBtn">
+    <div class="pwa-shortcut-row" id="pwaShortcutRow" style="display:none;">
+        <button type="button" class="pwa-shortcut-btn" id="pwaShortcutLink">
             <i class="ti ti-device-mobile-plus"></i>
-            <span id="installAppBtnText">Install App</span>
+            <span>Install App</span>
         </button>
-        <div class="install-hint" id="installHint" style="display:none;"></div>
     </div>
+
+    <div class="pwa-shortcut-note" id="pwaShortcutNote" style="display:none;"></div>
 </div>
 
 <script src="js/api.js"></script>
@@ -196,10 +197,9 @@ if (!empty($_SESSION['user'])) {
 
     // ── Install App (PWA) — login page only ──────────────────────────────
     (function () {
-        const row      = document.getElementById('installAppRow');
-        const btn      = document.getElementById('installAppBtn');
-        const btnText  = document.getElementById('installAppBtnText');
-        const hint     = document.getElementById('installHint');
+        const row      = document.getElementById('pwaShortcutRow');
+        const btn      = document.getElementById('pwaShortcutLink');
+        const hint     = document.getElementById('pwaShortcutNote');
         let deferredPrompt = null;
 
         // Already running as an installed app? Nothing to do.
@@ -230,7 +230,8 @@ if (!empty($_SESSION['user'])) {
             row.style.display = 'block';
         }
 
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
             if (deferredPrompt) {
                 deferredPrompt.prompt();
                 const { outcome } = await deferredPrompt.userChoice;
