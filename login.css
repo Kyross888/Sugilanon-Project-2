@@ -3,7 +3,6 @@
    ============================================================ */
 
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-
 :root {
     --primary: #4f46e5;
     --primary-light: #eef2ff;
@@ -30,34 +29,40 @@ body {
     align-items: center;
     justify-content: center;
     padding: 20px;
-    background-image:
-        radial-gradient(ellipse at 20% 50%, rgba(79, 70, 229, 0.08) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%);
+    background-image: radial-gradient(ellipse at 20% 50%, rgba(79, 70, 229, 0.08) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(99, 102, 241, 0.06) 0%, transparent 50%);
 }
 
+
 /* ── Card ── */
+
 .login-card {
     background: var(--white);
     width: 100%;
     max-width: 460px;
     padding: 44px 40px;
     border-radius: 28px;
-    box-shadow:
-        0 0 0 1px rgba(79, 70, 229, 0.06),
-        0 24px 48px -12px rgba(0, 0, 0, 0.12);
+    box-shadow: 0 0 0 1px rgba(79, 70, 229, 0.06), 0 24px 48px -12px rgba(0, 0, 0, 0.12);
     text-align: center;
     animation: slideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes slideUp {
-    from { opacity: 0; transform: translateY(24px); }
-    to   { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(24px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }
 
+
 /* ── Logo ── */
+
 .brand-icon {
-    width: 160px;
-    height: 80px;
+    width: 260px;
+    height: 130px;
     margin: 0 auto 18px;
     display: flex;
     align-items: center;
@@ -71,7 +76,9 @@ body {
     object-fit: contain;
 }
 
+
 /* ── Headings ── */
+
 h2 {
     color: var(--text-dark);
     font-size: 1.6rem;
@@ -86,7 +93,9 @@ p {
     font-size: 0.9rem;
 }
 
+
 /* ── Role Selector ── */
+
 .role-selector {
     display: flex;
     background: #f1f5f9;
@@ -116,7 +125,9 @@ p {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
+
 /* ── Google Button ── */
+
 .google-btn {
     width: 100%;
     padding: 14px 16px;
@@ -146,7 +157,9 @@ p {
     transform: translateY(0);
 }
 
+
 /* ── Divider ── */
+
 .divider {
     display: flex;
     align-items: center;
@@ -167,7 +180,9 @@ p {
     background: var(--border);
 }
 
+
 /* ── Input Groups ── */
+
 .input-group {
     text-align: left;
     margin-bottom: 18px;
@@ -205,7 +220,9 @@ input:focus {
     box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
 }
 
+
 /* ── Login Button ── */
+
 .login-btn {
     width: 100%;
     padding: 15px;
@@ -239,7 +256,9 @@ input:focus {
     transform: none;
 }
 
+
 /* ── Footer Links ── */
+
 .footer-link {
     margin-top: 24px;
     color: var(--text-light);
@@ -258,7 +277,9 @@ input:focus {
     opacity: 0.75;
 }
 
+
 /* ── Loading Overlay ── */
+
 #loadingOverlay {
     display: none;
     position: fixed;
@@ -292,15 +313,20 @@ input:focus {
 }
 
 @keyframes spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
+
 /* ── Responsive ── */
+
 @media (max-width: 480px) {
     .login-card {
         padding: 32px 24px;
         border-radius: 20px;
     }
-
-    h2 { font-size: 1.4rem; }
+    h2 {
+        font-size: 1.4rem;
+    }
 }
