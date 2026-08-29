@@ -272,6 +272,9 @@ if (!isset($_GET['action'])) {
         }
         
         @media print {
+            @page {
+                margin: 0;
+            }
             body * {
                 visibility: hidden;
             }
@@ -286,6 +289,7 @@ if (!isset($_GET['action'])) {
                 top: 0;
                 width: 100%;
                 font-family: 'Courier New', monospace;
+                padding: 6mm;
             }
         }
         
