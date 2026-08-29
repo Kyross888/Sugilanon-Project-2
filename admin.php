@@ -224,15 +224,16 @@ if (isset($_GET['action'])) {
 
         /* Date filter styles */
         .date-btn {
-            padding: 5px 13px;
+            padding: 7px 15px;
             border-radius: 999px;
-            font-size: 11px;
+            font-size: 12.5px;
             font-weight: 700;
             cursor: pointer;
             border: 1px solid transparent;
             transition: all 0.2s;
             text-transform: uppercase;
             letter-spacing: 0.03em;
+            white-space: nowrap;
         }
         .date-btn.active-date {
             background: #4f46e5;
@@ -260,13 +261,14 @@ if (isset($_GET['action'])) {
             background: transparent;
             border: 1px solid #e2e8f0;
             border-radius: 999px;
-            padding: 5px 13px;
-            font-size: 11px;
+            padding: 7px 12px;
+            font-size: 12.5px;
             font-weight: 700;
             color: #64748b;
             outline: none;
             cursor: pointer;
             transition: all 0.2s;
+            max-width: 128px;
         }
         input[type="date"].date-input:focus {
             border-color: #4f46e5;
@@ -276,6 +278,78 @@ if (isset($_GET['action'])) {
             border-color: rgb(51 65 85);
             color: #94a3b8;
             color-scheme: dark;
+        }
+        /* On narrow phone screens, shrink the date pill contents a bit more
+           so Today / Yesterday / date-picker never get pushed off-screen. */
+        @media (max-width: 420px) {
+            .date-btn {
+                padding: 6px 11px;
+                font-size: 11.5px;
+            }
+            input[type="date"].date-input {
+                max-width: 104px;
+                padding: 6px 9px;
+                font-size: 11.5px;
+            }
+        }
+
+        /* ============================================================
+           SENIOR-FRIENDLY LIGHT MODE
+           Only applies when dark mode is OFF (html does not have .dark).
+           Bigger text, stronger contrast, clearer borders — easier for
+           older clients to read and understand. Dark mode is untouched.
+        ============================================================ */
+        html:not(.dark) body {
+            font-size: 17px;
+            line-height: 1.65;
+        }
+        /* Boost small/secondary text that was too light to read comfortably */
+        html:not(.dark) .text-xs {
+            font-size: 0.85rem !important;
+        }
+        html:not(.dark) .text-sm {
+            font-size: 0.95rem !important;
+        }
+        html:not(.dark) .text-slate-400 {
+            color: #475569 !important; /* was very light gray, now clearly readable */
+        }
+        html:not(.dark) .text-slate-500 {
+            color: #334155 !important;
+        }
+        /* Make card and section borders more visible/defined */
+        html:not(.dark) .border-slate-100 {
+            border-color: #cbd5e1 !important;
+        }
+        html:not(.dark) .border-slate-200 {
+            border-color: #94a3b8 !important;
+        }
+        html:not(.dark) .divide-slate-100 > :not([hidden]) ~ :not([hidden]) {
+            border-color: #cbd5e1 !important;
+        }
+        /* Larger, bolder buttons and inputs — easier to see and tap
+           (but NOT the compact date-filter pill, which needs to stay
+           small so Today/Yesterday/date fit on one line without overflow) */
+        html:not(.dark) button:not(.date-btn) {
+            font-size: 1.02em;
+        }
+        html:not(.dark) input:not(.date-input),
+        html:not(.dark) select,
+        html:not(.dark) textarea {
+            font-size: 1rem !important;
+        }
+        /* Headings slightly bolder for clearer visual hierarchy */
+        html:not(.dark) h1,
+        html:not(.dark) h2,
+        html:not(.dark) h3 {
+            font-weight: 800;
+        }
+        /* Stronger focus outline for accessibility */
+        html:not(.dark) input:focus,
+        html:not(.dark) select:focus,
+        html:not(.dark) textarea:focus,
+        html:not(.dark) button:focus-visible {
+            outline: 2px solid #4f46e5 !important;
+            outline-offset: 1px;
         }
     </style>
 </head>
@@ -442,9 +516,9 @@ if (isset($_GET['action'])) {
                     <div class="flex flex-wrap items-center gap-3">
 
                         <!-- Date Filter pill -->
-                        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-2.5 shadow-sm">
+                        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-2.5 shadow-sm w-full sm:w-auto">
                             <i class="fas fa-calendar-alt text-indigo-400 text-sm shrink-0"></i>
-                            <div class="flex items-center gap-1.5">
+                            <div class="flex flex-wrap items-center gap-1.5">
                                 <button id="btn-today" class="date-btn active-date" onclick="setDate('today')">Today</button>
                                 <button id="btn-yesterday" class="date-btn" onclick="setDate('yesterday')">Yesterday</button>
                                 <input type="date" id="customDate" class="date-input" onchange="setDate('custom')" title="Pick any date">
@@ -565,8 +639,8 @@ if (isset($_GET['action'])) {
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <div class="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
-                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-6">Revenue Forecast — All Time</h3>
-                        <div class="h-[300px] w-full"><canvas id="revenueChart"></canvas></div>
+                        <h3 class="text-slate-700 dark:text-slate-300 font-black text-base uppercase tracking-tight mb-6">Money Earned Each Month</h3>
+                        <div class="h-[300px] md:h-[320px] w-full"><canvas id="revenueChart"></canvas></div>
                     </div>
 
                     <div class="bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
@@ -620,9 +694,9 @@ if (isset($_GET['action'])) {
                     </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <!-- Date filter (Sales page) -->
-                        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-2.5 shadow-sm">
+                        <div class="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-2.5 shadow-sm w-full sm:w-auto">
                             <i class="fas fa-calendar-alt text-indigo-400 text-sm shrink-0"></i>
-                            <div class="flex items-center gap-1.5">
+                            <div class="flex flex-wrap items-center gap-1.5">
                                 <button id="sbtn-today" class="date-btn active-date" onclick="setDate('today')">Today</button>
                                 <button id="sbtn-yesterday" class="date-btn" onclick="setDate('yesterday')">Yesterday</button>
                                 <input type="date" id="scustomDate" class="date-input" onchange="setSalesDate()" title="Pick any date">
@@ -1401,17 +1475,25 @@ if (isset($_GET['action'])) {
             Chart.defaults.color       = '#64748b';
             Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
 
-            // ── Revenue: fetch current month daily totals ──────
+            // ── Revenue: fetch all-time data, then group into simple monthly totals ──
             let revLabels = [];
             let revData   = [];
             try {
                 const trend = await fetch('admin.php?action=monthly_revenue', { credentials: 'same-origin' }).then(r => r.json());
                 if (trend && trend.success && trend.data.length) {
-                    revLabels = trend.data.map(d => {
-                        const dt = new Date(d.day);
-                        return dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+                    // Group daily rows into month buckets (e.g. "May 2026")
+                    const monthTotals = {};
+                    trend.data.forEach(d => {
+                        const dt  = new Date(d.day);
+                        const key = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0');
+                        monthTotals[key] = (monthTotals[key] || 0) + parseFloat(d.revenue);
                     });
-                    revData = trend.data.map(d => parseFloat(d.revenue));
+                    const sortedKeys = Object.keys(monthTotals).sort();
+                    revLabels = sortedKeys.map(key => {
+                        const [y, m] = key.split('-');
+                        return new Date(y, m - 1, 1).toLocaleDateString('en-PH', { month: 'short', year: 'numeric' });
+                    });
+                    revData = sortedKeys.map(key => monthTotals[key]);
                 }
             } catch (_) {}
 
@@ -1420,39 +1502,59 @@ if (isset($_GET['action'])) {
                 revData   = [0];
             }
 
+            // Plugin that writes the exact peso amount directly above each bar,
+            // so nothing needs to be tapped or hovered to see the value.
+            const barValueLabelPlugin = {
+                id: 'barValueLabel',
+                afterDatasetsDraw(chart) {
+                    const { ctx } = chart;
+                    ctx.save();
+                    ctx.font = 'bold 14px Segoe UI, system-ui, sans-serif';
+                    ctx.fillStyle = '#334155';
+                    ctx.textAlign = 'center';
+                    chart.data.datasets[0].data.forEach((value, i) => {
+                        const meta = chart.getDatasetMeta(0);
+                        const bar  = meta.data[i];
+                        if (!bar) return;
+                        const label = '₱' + (value >= 1000 ? (value / 1000).toFixed(1) + 'k' : value.toFixed(0));
+                        ctx.fillText(label, bar.x, bar.y - 10);
+                    });
+                    ctx.restore();
+                },
+            };
+
             new Chart(document.getElementById('revenueChart'), {
-                type: 'line',
+                type: 'bar',
                 data: {
                     labels:   revLabels,
                     datasets: [{
-                        data:                revData,
-                        borderColor:         '#4f46e5',
-                        borderWidth:         3,
-                        tension:             0.4,
-                        fill:                true,
-                        backgroundColor:     'rgba(79,70,229,0.08)',
-                        pointBackgroundColor:'#ffffff',
-                        pointBorderColor:    '#4f46e5',
-                        pointBorderWidth:    2,
-                        pointRadius:         4,
-                        pointHoverRadius:    6,
+                        data:            revData,
+                        backgroundColor: '#4f46e5',
+                        borderRadius:    8,
+                        maxBarThickness: 56,
                     }],
                 },
+                plugins: [barValueLabelPlugin],
                 options: {
                     maintainAspectRatio: false,
+                    layout: { padding: { top: 28 } },
                     plugins: {
                         legend:  { display: false },
                         tooltip: {
-                            backgroundColor: '#1e293b', padding: 12, cornerRadius: 8, displayColors: false,
+                            backgroundColor: '#1e293b', padding: 14, cornerRadius: 10, displayColors: false,
+                            titleFont: { size: 15, weight: 'bold' },
+                            bodyFont:  { size: 15 },
                             callbacks: { label: ctx => '₱' + ctx.parsed.y.toLocaleString('en-PH', { minimumFractionDigits: 2 }) },
                         },
                     },
                     scales: {
-                        x: { grid: { display: false }, border: { display: false } },
+                        x: {
+                            grid: { display: false }, border: { display: false },
+                            ticks: { font: { size: 15, weight: '700' }, color: '#334155' },
+                        },
                         y: {
+                            display: false,
                             beginAtZero: true,
-                            grid: { color: '#f1f5f9', drawBorder: false }, border: { display: false },
-                            ticks: { callback: v => '₱' + (v >= 1000 ? (v/1000).toFixed(1) + 'k' : v) },
                         },
                     },
                 },
