@@ -956,7 +956,33 @@ if (isset($_GET['action'])) {
                 return;
             }
             await loadAllBranchesFromDB();
+            startDashboardAutoRefresh();
         }
+
+        // ── Auto-refresh Dashboard / Sales Overview in the background ──
+        // Silently re-fetches today's numbers every few seconds, so newly
+        // completed transactions show up on their own — no manual reload
+        // needed. Only refreshes when viewing "Today" (past dates don't
+        // change) and only while the tab is actually visible/in-focus,
+        // to avoid wasting requests/battery when it's in the background.
+        let dashboardInterval = null;
+
+        function startDashboardAutoRefresh() {
+            if (dashboardInterval) clearInterval(dashboardInterval);
+            dashboardInterval = setInterval(() => {
+                if (document.visibilityState === 'visible' && selectedDate === todayStr()) {
+                    loadAllBranchesFromDB();
+                }
+            }, 8000); // check for new transactions every 8 seconds
+        }
+
+        // If the client switches back to this tab/app, refresh right away
+        // instead of waiting for the next interval tick.
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && selectedDate === todayStr()) {
+                loadAllBranchesFromDB();
+            }
+        });
 
         // ── Load all branches from DB ──────────────────────────
         async function loadAllBranchesFromDB() {
