@@ -368,6 +368,13 @@
 
 <body>
     <nav class="sidebar" id="sidebar">
+        <script>
+            // Restore sidebar collapsed/expanded state instantly, before paint,
+            // so it stays consistent across every page instead of resetting.
+            if (localStorage.getItem('sidebarCollapsed') === '1') {
+                document.getElementById('sidebar') && document.getElementById('sidebar').classList.add('collapsed');
+            }
+        </script>
         <div class="brand" onclick="toggleSidebar()">
 <img src="lunas.jpg" alt="Luna's Logo">          </div>
         <ul class="nav-links">
@@ -478,7 +485,9 @@
         })();
 
         function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('collapsed');
+            const sb = document.getElementById('sidebar');
+            sb.classList.toggle('collapsed');
+            localStorage.setItem('sidebarCollapsed', sb.classList.contains('collapsed') ? '1' : '0');
         }
 
         function switchPanel(panelName, btn) {
