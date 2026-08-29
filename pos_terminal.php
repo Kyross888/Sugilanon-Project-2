@@ -735,6 +735,183 @@
         .gcash-back-btn:hover {
             background: #edf2f7;
         }
+
+        /* ============================================================
+           RESPONSIVE / MOBILE LAYOUT
+           Desktop (sidebar + products + cart, all side-by-side) is
+           untouched above this breakpoint. On phones/small tablets,
+           the sidebar becomes a slide-in drawer, the cart becomes a
+           slide-up drawer opened via a floating button, and the
+           product grid/category bar shrink to fit.
+        ============================================================ */
+        .mobile-menu-btn,
+        .mobile-cart-fab,
+        .mobile-overlay {
+            display: none;
+        }
+        .cart-close-btn {
+            display: none;
+            background: none;
+            border: none;
+            font-size: 20px;
+            color: var(--text-light);
+            cursor: pointer;
+            padding: 4px 8px;
+        }
+
+        @media (max-width: 900px) {
+            body {
+                overflow: hidden; /* panels scroll internally instead */
+            }
+
+            /* Sidebar becomes an off-canvas drawer */
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                width: 250px;
+                transform: translateX(-100%);
+                overflow-y: auto;
+            }
+            .sidebar.mobile-open {
+                transform: translateX(0);
+            }
+            /* On mobile the mini/collapsed desktop state doesn't apply */
+            .sidebar.collapsed {
+                width: 250px;
+            }
+            .sidebar.collapsed .nav-links span {
+                display: inline;
+            }
+
+            /* Hamburger button to open the sidebar */
+            .mobile-menu-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 42px;
+                height: 42px;
+                border-radius: 10px;
+                border: 1px solid var(--border);
+                background: white;
+                color: var(--text-dark);
+                font-size: 18px;
+                cursor: pointer;
+                flex-shrink: 0;
+            }
+
+            .main-content {
+                width: 100vw;
+            }
+
+            .header {
+                padding: 12px 16px;
+                gap: 10px;
+            }
+            .header h2 {
+                font-size: 16px !important;
+                white-space: nowrap;
+            }
+            .search-bar input {
+                width: 100%;
+                min-width: 0;
+            }
+
+            /* Category bar scrolls sideways instead of wrapping,
+               saving vertical space for the product grid */
+            .category-bar {
+                padding: 10px 12px;
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+            }
+            .category-bar::-webkit-scrollbar {
+                display: none;
+            }
+            .cat-btn {
+                flex-shrink: 0;
+            }
+
+            .product-area {
+                padding: 14px;
+                padding-bottom: 90px; /* room above the floating cart button */
+            }
+            .grid {
+                grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+                gap: 12px;
+            }
+            .img-box {
+                height: 90px;
+            }
+
+            /* Cart becomes a bottom slide-up drawer, hidden until opened */
+            .cart-panel {
+                position: fixed;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                width: auto;
+                height: 88vh;
+                border-left: none;
+                border-top: 1px solid var(--border);
+                border-radius: 20px 20px 0 0;
+                transform: translateY(100%);
+                z-index: 300;
+                box-shadow: 0 -8px 24px rgba(0,0,0,0.15);
+            }
+            .cart-panel.mobile-open {
+                transform: translateY(0);
+            }
+            .cart-items {
+                overflow-y: auto;
+            }
+
+            /* Darkened backdrop shown behind either open drawer */
+            .mobile-overlay {
+                position: fixed;
+                inset: 0;
+                background: rgba(0,0,0,0.4);
+                z-index: 250;
+            }
+            .mobile-overlay.show {
+                display: block;
+            }
+
+            /* Floating "View Cart" button, shown on mobile once the cart has items */
+            .mobile-cart-fab.has-items {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                gap: 10px;
+                position: fixed;
+                left: 14px;
+                right: 14px;
+                bottom: 14px;
+                padding: 14px 20px;
+                background: var(--primary);
+                color: white;
+                border-radius: 16px;
+                font-weight: 700;
+                font-size: 15px;
+                box-shadow: 0 8px 20px rgba(90,103,216,0.35);
+                z-index: 200;
+                cursor: pointer;
+                border: none;
+            }
+            .mobile-cart-fab .fab-count {
+                background: rgba(255,255,255,0.25);
+                border-radius: 999px;
+                padding: 2px 10px;
+                font-size: 13px;
+            }
+
+            /* Close button inside the cart drawer header on mobile */
+            .cart-close-btn {
+                display: inline-flex;
+            }
+        }
     </style>
 </head>
 
@@ -814,6 +991,8 @@
         </div>
     </div>
 
+    <div class="mobile-overlay" id="mobileOverlay" onclick="closeMobilePanels()"></div>
+
     <nav class="sidebar" id="sidebar">
         <div class="brand" onclick="toggleSidebar()">
 <img src="lunas.jpg" alt="Luna's Logo">          </div>
@@ -830,6 +1009,9 @@
 
     <div class="main-content">
         <header class="header">
+            <button class="mobile-menu-btn" onclick="toggleMobileSidebar()" aria-label="Open menu">
+                <i class="fa-solid fa-bars"></i>
+            </button>
             <h2 id="order-id" style="font-size:20px;">New Order</h2>
             <div class="search-bar">
                 <input type="text" id="productSearch" placeholder="Search menu items..." onkeyup="filterProducts()">
@@ -872,12 +1054,17 @@
         </div>
     </div>
 
-    <div class="cart-panel">
+    <div class="cart-panel" id="cartPanel">
         <div class="cart-header">
             <span>Current Cart</span>
-            <button onclick="voidTransaction()" style="background:none;border:none;color:var(--danger);font-size:13px;font-weight:600;cursor:pointer;">
-                <i class="fa-solid fa-trash-can"></i> Clear
-            </button>
+            <div style="display:flex;align-items:center;gap:6px;">
+                <button onclick="voidTransaction()" style="background:none;border:none;color:var(--danger);font-size:13px;font-weight:600;cursor:pointer;">
+                    <i class="fa-solid fa-trash-can"></i> Clear
+                </button>
+                <button class="cart-close-btn" onclick="closeMobilePanels()" aria-label="Close cart">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
         </div>
 
         <div class="cart-items" id="cart-items"></div>
@@ -913,6 +1100,11 @@
             <button class="btn-place" onclick="placeOrder()">Proceed to Payment</button>
         </div>
     </div>
+
+    <button class="mobile-cart-fab" id="mobileCartFab" onclick="toggleMobileCart()">
+        <span><i class="fa-solid fa-cart-shopping"></i> View Cart <span class="fab-count" id="fabCount">0 items</span></span>
+        <span id="fabTotal">₱0.00</span>
+    </button>
 
     <script src="js/api.js"></script>
     <script>
@@ -1302,6 +1494,39 @@
             document.getElementById('sidebar').classList.toggle('collapsed');
         }
 
+        // ── Mobile drawer controls ──────────────────────────────
+        function toggleMobileSidebar() {
+            document.getElementById('sidebar').classList.toggle('mobile-open');
+            document.getElementById('cartPanel').classList.remove('mobile-open');
+            document.getElementById('mobileOverlay').classList.toggle(
+                'show', document.getElementById('sidebar').classList.contains('mobile-open')
+            );
+        }
+
+        function toggleMobileCart() {
+            document.getElementById('cartPanel').classList.toggle('mobile-open');
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            document.getElementById('mobileOverlay').classList.toggle(
+                'show', document.getElementById('cartPanel').classList.contains('mobile-open')
+            );
+        }
+
+        function closeMobilePanels() {
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            document.getElementById('cartPanel').classList.remove('mobile-open');
+            document.getElementById('mobileOverlay').classList.remove('show');
+        }
+
+        // Keeps the floating "View Cart" button's item count/total in sync
+        function updateMobileCartFab() {
+            const fab = document.getElementById('mobileCartFab');
+            if (!fab) return;
+            const count = cart.reduce((sum, i) => sum + i.quantity, 0);
+            document.getElementById('fabCount').textContent = count + (count === 1 ? ' item' : ' items');
+            document.getElementById('fabTotal').textContent = document.getElementById('total').innerText;
+            fab.classList.toggle('has-items', count > 0);
+        }
+
         function setCategory(cat, btn) {
             currentCategory = cat;
             document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
@@ -1454,6 +1679,7 @@ function addToCart(productId, name, price) {
             document.getElementById('subtotal').innerText = fmt(subtotal);
             document.getElementById('discount').innerText = `- ${fmt(discount)}`;
             document.getElementById('total').innerText = fmt(total);
+            updateMobileCartFab();
         }
 
         function voidTransaction() {
@@ -1580,6 +1806,7 @@ function addToCart(productId, name, price) {
             if (btn) { btn.disabled = false; btn.textContent = 'Start New Transaction'; }
             isProcessingOrder = false;
             renderCart();
+            closeMobilePanels();
 
             // ✅ FIX: Load products in background — do NOT await.
             //         This makes the UI reset instantly instead of waiting for
