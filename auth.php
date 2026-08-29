@@ -50,6 +50,23 @@ switch ($action) {
             'branch_id' => $user['branch_id'],
         ];
 
+        // ── Set a persistent Remember-Me cookie (survives redeploys) ──
+        $selector  = bin2hex(random_bytes(16));
+        $validator = bin2hex(random_bytes(32));
+        $expires   = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 30); // 30 days
+
+        $pdo->prepare(
+            "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
+        )->execute([$selector, hash('sha256', $validator), $expires, $user['id']]);
+
+        setcookie('remember_me', $selector . ':' . $validator, [
+            'expires'  => time() + 60 * 60 * 24 * 30,
+            'path'     => '/',
+            'secure'   => true,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ]);
+
         respond(['success' => true, 'user' => $_SESSION['user']]);
         break;
 
@@ -120,7 +137,17 @@ switch ($action) {
 
     // ── LOGOUT ───────────────────────────────────────────────
     case 'logout':
+        if (!empty($_SESSION['user']['id'])) {
+            $pdo->prepare(
+                "UPDATE users SET remember_selector = NULL, remember_validator_hash = NULL, remember_expires = NULL WHERE id = ?"
+            )->execute([$_SESSION['user']['id']]);
+        }
+        setcookie('remember_me', '', ['expires' => time() - 3600, 'path' => '/']);
         $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
         session_destroy();
         respond(['success' => true]);
         break;
