@@ -82,10 +82,16 @@ if (!empty($_SESSION['user'])) {
     </div>
 
     <div class="install-app-row" id="installAppRow" style="display:none;">
-        <button type="button" class="install-app-pill" id="installAppBtn">
-            <i class="ti ti-device-mobile-plus"></i>
-            <span id="installAppBtnText">Install App</span>
-        </button>
+        <div class="install-banner">
+            <img src="icon-72x72.png" alt="" class="install-banner-icon">
+            <div class="install-banner-text">
+                <strong>Install Luna's POS</strong>
+                <span>Faster access, works offline</span>
+            </div>
+            <button type="button" class="install-banner-btn" id="installAppBtn">
+                <span id="installAppBtnText">Install</span>
+            </button>
+        </div>
         <div class="install-hint" id="installHint" style="display:none;"></div>
     </div>
 </div>
@@ -224,10 +230,10 @@ if (!empty($_SESSION['user'])) {
             deferredPrompt = null;
         });
 
-        // iOS Safari never fires beforeinstallprompt — show manual steps instead.
-        if (isIOS && isSafari) {
+        // iOS never fires beforeinstallprompt — show manual steps instead
+        // (only Safari can actually install; other iOS browsers get a redirect hint).
+        if (isIOS) {
             row.style.display = 'block';
-            btnText.textContent = 'Install App';
         }
 
         btn.addEventListener('click', async () => {
@@ -249,6 +255,12 @@ if (!empty($_SESSION['user'])) {
                     hint.innerHTML = 'Tap the <strong>Share</strong> icon <i class="ti ti-upload"></i> in Safari, then choose <strong>"Add to Home Screen"</strong>.';
                     hint.style.display = 'block';
                 }
+                return;
+            }
+
+            if (isIOS && !isSafari) {
+                hint.textContent = 'Please open this page in Safari to install the app — other browsers on iPhone/iPad can\'t add it to your Home Screen.';
+                hint.style.display = 'block';
                 return;
             }
 
