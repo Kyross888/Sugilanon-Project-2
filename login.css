@@ -278,6 +278,55 @@ input:focus {
 }
 
 
+/* ── Install App ── */
+
+.install-app-row {
+    margin-top: 16px;
+}
+
+.install-app-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 11px 16px;
+    background: #eef2ff;
+    color: var(--primary);
+    border: 1px solid #e0e7ff;
+    border-radius: 10px;
+    font-size: 0.87rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.1s;
+    box-sizing: border-box;
+}
+
+.install-app-btn:hover {
+    background: #e0e7ff;
+}
+
+.install-app-btn:active {
+    transform: scale(0.98);
+}
+
+.install-app-btn i {
+    font-size: 16px;
+}
+
+.install-hint {
+    margin-top: 10px;
+    font-size: 0.8rem;
+    color: var(--text-light);
+    line-height: 1.6;
+    background: #f8fafc;
+    border: 1px solid #eef1f6;
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: left;
+}
+
+
 /* ── Loading Overlay ── */
 
 #loadingOverlay {
