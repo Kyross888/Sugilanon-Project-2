@@ -82,8 +82,9 @@ if (!empty($_SESSION['user'])) {
     </div>
 
     <div class="install-app-row" id="installAppRow" style="display:none;">
-        <button type="button" class="install-app-btn" id="installAppBtn">
-            <i class="ti ti-device-mobile-plus"></i> <span id="installAppBtnText">Install App</span>
+        <button type="button" class="install-app-pill" id="installAppBtn">
+            <i class="ti ti-device-mobile-plus"></i>
+            <span id="installAppBtnText">Install App</span>
         </button>
         <div class="install-hint" id="installHint" style="display:none;"></div>
     </div>
