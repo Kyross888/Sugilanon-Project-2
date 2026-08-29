@@ -82,16 +82,10 @@ if (!empty($_SESSION['user'])) {
     </div>
 
     <div class="install-app-row" id="installAppRow" style="display:none;">
-        <div class="install-banner">
-            <img src="icon-72x72.png" alt="" class="install-banner-icon">
-            <div class="install-banner-text">
-                <strong>Install Luna's POS</strong>
-                <span>Faster access, works offline</span>
-            </div>
-            <button type="button" class="install-banner-btn" id="installAppBtn">
-                <span id="installAppBtnText">Install</span>
-            </button>
-        </div>
+        <button type="button" class="install-btn" id="installAppBtn">
+            <i class="ti ti-device-mobile-plus"></i>
+            <span id="installAppBtnText">Install App</span>
+        </button>
         <div class="install-hint" id="installHint" style="display:none;"></div>
     </div>
 </div>
