@@ -281,50 +281,63 @@ input:focus {
 /* ── Install App ── */
 
 .install-app-row {
-    margin-top: 16px;
+    margin-top: 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
 }
 
-.install-app-btn {
+.install-app-pill {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
-    width: 100%;
-    padding: 11px 16px;
-    background: #eef2ff;
+    gap: 6px;
+    padding: 8px 18px;
+    background: transparent;
     color: var(--primary);
-    border: 1px solid #e0e7ff;
-    border-radius: 10px;
-    font-size: 0.87rem;
+    border: 1.3px dashed #c7d2fe;
+    border-radius: 999px;
+    font-size: 0.8rem;
     font-weight: 700;
+    font-family: 'Plus Jakarta Sans', sans-serif;
     cursor: pointer;
-    transition: background 0.2s, transform 0.1s;
-    box-sizing: border-box;
+    transition: background 0.2s, transform 0.1s, border-color 0.2s;
+    white-space: nowrap;
+    max-width: 100%;
 }
 
-.install-app-btn:hover {
-    background: #e0e7ff;
+.install-app-pill:hover {
+    background: var(--primary-light);
+    border-color: var(--primary);
 }
 
-.install-app-btn:active {
-    transform: scale(0.98);
+.install-app-pill:active {
+    transform: scale(0.97);
 }
 
-.install-app-btn i {
-    font-size: 16px;
+.install-app-pill i {
+    font-size: 15px;
+    flex-shrink: 0;
+}
+
+.install-app-pill span {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 
 .install-hint {
     margin-top: 10px;
-    font-size: 0.8rem;
-    color: var(--text-light);
-    line-height: 1.6;
+    font-size: 0.78rem;
+    color: var(--text-mid);
+    line-height: 1.55;
     background: #f8fafc;
     border: 1px solid #eef1f6;
-    border-radius: 8px;
+    border-radius: 10px;
     padding: 10px 12px;
     text-align: left;
+    max-width: 100%;
+    box-sizing: border-box;
 }
+
 
 
 /* ── Loading Overlay ── */
