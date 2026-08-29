@@ -281,76 +281,42 @@ input:focus {
 /* ── Install App ── */
 
 .install-app-row {
-    margin-top: 20px;
+    margin-top: 14px;
 }
 
-.install-banner {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 12px 14px;
-    background: linear-gradient(135deg, #f5f7ff 0%, #eef2ff 100%);
-    border: 1px solid #e0e7ff;
-    border-radius: 16px;
-    text-align: left;
-}
-
-.install-banner-icon {
-    width: 40px;
-    height: 40px;
-    border-radius: 10px;
-    flex-shrink: 0;
-    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.18);
-    object-fit: cover;
-}
-
-.install-banner-text {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    flex: 1;
-    min-width: 0;
-}
-
-.install-banner-text strong {
-    font-size: 0.85rem;
-    font-weight: 800;
+.install-btn {
+    width: 100%;
+    padding: 14px 16px;
+    background: var(--white);
     color: var(--text-dark);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.install-banner-text span {
-    font-size: 0.74rem;
-    font-weight: 500;
-    color: var(--text-light);
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-
-.install-banner-btn {
-    flex-shrink: 0;
-    padding: 8px 16px;
-    background: var(--primary);
-    color: white;
-    border: none;
-    border-radius: 10px;
-    font-size: 0.8rem;
+    border: 1.5px solid var(--border);
+    border-radius: 14px;
+    font-size: 0.95rem;
     font-weight: 700;
     font-family: 'Plus Jakarta Sans', sans-serif;
     cursor: pointer;
-    box-shadow: 0 4px 10px -2px var(--primary-shadow);
-    transition: opacity 0.2s, transform 0.1s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    transition: all 0.2s ease;
+    letter-spacing: 0.1px;
 }
 
-.install-banner-btn:hover {
-    opacity: 0.9;
+.install-btn i {
+    font-size: 19px;
+    color: var(--primary);
 }
 
-.install-banner-btn:active {
-    transform: scale(0.95);
+.install-btn:hover {
+    background: #fafbff;
+    border-color: #c7d2fe;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
+    transform: translateY(-1px);
+}
+
+.install-btn:active {
+    transform: translateY(0);
 }
 
 .install-hint {
@@ -365,6 +331,7 @@ input:focus {
     text-align: left;
     box-sizing: border-box;
 }
+
 
 
 
