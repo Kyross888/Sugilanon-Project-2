@@ -281,47 +281,76 @@ input:focus {
 /* ── Install App ── */
 
 .install-app-row {
-    margin-top: 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    margin-top: 20px;
 }
 
-.install-app-pill {
-    display: inline-flex;
+.install-banner {
+    display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 8px 18px;
-    background: transparent;
-    color: var(--primary);
-    border: 1.3px dashed #c7d2fe;
-    border-radius: 999px;
+    gap: 12px;
+    padding: 12px 14px;
+    background: linear-gradient(135deg, #f5f7ff 0%, #eef2ff 100%);
+    border: 1px solid #e0e7ff;
+    border-radius: 16px;
+    text-align: left;
+}
+
+.install-banner-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(79, 70, 229, 0.18);
+    object-fit: cover;
+}
+
+.install-banner-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+}
+
+.install-banner-text strong {
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.install-banner-text span {
+    font-size: 0.74rem;
+    font-weight: 500;
+    color: var(--text-light);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.install-banner-btn {
+    flex-shrink: 0;
+    padding: 8px 16px;
+    background: var(--primary);
+    color: white;
+    border: none;
+    border-radius: 10px;
     font-size: 0.8rem;
     font-weight: 700;
     font-family: 'Plus Jakarta Sans', sans-serif;
     cursor: pointer;
-    transition: background 0.2s, transform 0.1s, border-color 0.2s;
-    white-space: nowrap;
-    max-width: 100%;
+    box-shadow: 0 4px 10px -2px var(--primary-shadow);
+    transition: opacity 0.2s, transform 0.1s;
 }
 
-.install-app-pill:hover {
-    background: var(--primary-light);
-    border-color: var(--primary);
+.install-banner-btn:hover {
+    opacity: 0.9;
 }
 
-.install-app-pill:active {
-    transform: scale(0.97);
-}
-
-.install-app-pill i {
-    font-size: 15px;
-    flex-shrink: 0;
-}
-
-.install-app-pill span {
-    overflow: hidden;
-    text-overflow: ellipsis;
+.install-banner-btn:active {
+    transform: scale(0.95);
 }
 
 .install-hint {
@@ -334,9 +363,9 @@ input:focus {
     border-radius: 10px;
     padding: 10px 12px;
     text-align: left;
-    max-width: 100%;
     box-sizing: border-box;
 }
+
 
 
 
