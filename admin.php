@@ -1214,8 +1214,13 @@ if (isset($_GET['action'])) {
         function closeStocksModal()  { document.getElementById('stocksModal').classList.add('hidden'); }
 
         // ── Logout ─────────────────────────────────────────────
-        function logoutSession() {
+        async function logoutSession() {
             if (confirm('Are you sure you want to log out of the system?')) {
+                try {
+                    await api.auth.logout();
+                } catch (err) {
+                    // even if the request fails, still proceed to the login page
+                }
                 window.location.href = 'login.php';
             }
         }
