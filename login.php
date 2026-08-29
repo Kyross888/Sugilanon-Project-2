@@ -1,3 +1,13 @@
+<?php
+// If already logged in (active session, or auto-restored via the
+// Remember Me cookie inside db.php), skip the login form entirely
+// and go straight to the right dashboard — just like Facebook does.
+require_once 'db.php';
+if (!empty($_SESSION['user'])) {
+    header('Location: ' . ($_SESSION['user']['role'] === 'admin' ? 'admin.php' : 'dashboard.php'));
+    exit;
+}
+?>
 <!DOCTYPE html>
 <html lang="en">
 
