@@ -729,7 +729,9 @@
             if (report.success && report.transactions && report.transactions.length) {
                 const hourCounts = {};
                 report.transactions.forEach(t => {
-                    const hrStr = new Date(t.created_at + ' UTC').toLocaleString('en-US', {
+                    const s = t.created_at.replace(' ', 'T').replace(/[+Z].*$/, '');
+                    const dt = new Date(s + '+08:00');
+                    const hrStr = dt.toLocaleString('en-US', {
                         timeZone: 'Asia/Manila', hour: 'numeric', hour12: false
                     });
                     const hr = parseInt(hrStr);
