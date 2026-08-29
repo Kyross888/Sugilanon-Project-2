@@ -80,6 +80,13 @@ if (!empty($_SESSION['user'])) {
         Forgot password? <a href="forgot_password.php">Reset Password</a><br style="margin:6px 0;display:block;">
         <span>Don't have an account? <a href="register.php">Create Account</a></span>
     </div>
+
+    <div class="install-app-row" id="installAppRow" style="display:none;">
+        <button type="button" class="install-app-btn" id="installAppBtn">
+            <i class="ti ti-device-mobile-plus"></i> <span id="installAppBtnText">Install App</span>
+        </button>
+        <div class="install-hint" id="installHint" style="display:none;"></div>
+    </div>
 </div>
 
 <script src="js/api.js"></script>
@@ -185,6 +192,69 @@ if (!empty($_SESSION['user'])) {
             btn.disabled = false;
         }
     });
+
+    // ── Install App (PWA) — login page only ──────────────────────────────
+    (function () {
+        const row      = document.getElementById('installAppRow');
+        const btn      = document.getElementById('installAppBtn');
+        const btnText  = document.getElementById('installAppBtnText');
+        const hint     = document.getElementById('installHint');
+        let deferredPrompt = null;
+
+        // Already running as an installed app? Nothing to do.
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true;
+        if (isStandalone) return;
+
+        const ua       = window.navigator.userAgent;
+        const isIOS    = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+        const isSafari = isIOS && /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+
+        // Chrome / Edge / Android / desktop: capture the native prompt
+        // so we can trigger it from our own button instead of the mini-infobar.
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            row.style.display = 'block';
+        });
+
+        window.addEventListener('appinstalled', () => {
+            row.style.display = 'none';
+            deferredPrompt = null;
+        });
+
+        // iOS Safari never fires beforeinstallprompt — show manual steps instead.
+        if (isIOS && isSafari) {
+            row.style.display = 'block';
+            btnText.textContent = 'Install App';
+        }
+
+        btn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                const { outcome } = await deferredPrompt.userChoice;
+                if (outcome === 'accepted') {
+                    row.style.display = 'none';
+                }
+                deferredPrompt = null;
+                return;
+            }
+
+            if (isIOS && isSafari) {
+                const visible = hint.style.display === 'block';
+                if (visible) {
+                    hint.style.display = 'none';
+                } else {
+                    hint.innerHTML = 'Tap the <strong>Share</strong> icon <i class="ti ti-upload"></i> in Safari, then choose <strong>"Add to Home Screen"</strong>.';
+                    hint.style.display = 'block';
+                }
+                return;
+            }
+
+            hint.textContent = 'Your browser doesn\'t support one-tap install. Use your browser menu → "Add to Home Screen" / "Install App".';
+            hint.style.display = 'block';
+        });
+    })();
 </script>
 <script src="js/pwa.js"></script>
 </body>
