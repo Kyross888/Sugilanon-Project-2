@@ -278,13 +278,13 @@ input:focus {
 }
 
 
-/* ── Install App ── */
+/* ── PWA Install Shortcut ── */
 
-.install-app-row {
+.pwa-shortcut-row {
     margin-top: 14px;
 }
 
-.install-btn {
+.pwa-shortcut-btn {
     width: 100%;
     padding: 14px 16px;
     background: var(--white);
@@ -303,23 +303,23 @@ input:focus {
     letter-spacing: 0.1px;
 }
 
-.install-btn i {
+.pwa-shortcut-btn i {
     font-size: 19px;
     color: var(--primary);
 }
 
-.install-btn:hover {
+.pwa-shortcut-btn:hover {
     background: #fafbff;
     border-color: #c7d2fe;
     box-shadow: 0 4px 12px rgba(79, 70, 229, 0.1);
     transform: translateY(-1px);
 }
 
-.install-btn:active {
+.pwa-shortcut-btn:active {
     transform: translateY(0);
 }
 
-.install-hint {
+.pwa-shortcut-note {
     margin-top: 10px;
     font-size: 0.78rem;
     color: var(--text-mid);
@@ -331,6 +331,8 @@ input:focus {
     text-align: left;
     box-sizing: border-box;
 }
+
+
 
 
 
