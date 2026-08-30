@@ -638,7 +638,7 @@
             background: white;
             border-radius: 24px;
             width: 90%;
-            max-width: 400px;
+            max-width: 380px;
             max-height: calc(100vh - 170px);
             max-height: calc(100dvh - 170px);
             overflow-x: hidden;
@@ -649,38 +649,38 @@
         
         .gcash-header {
             background: linear-gradient(135deg, #0070e0, #00a8ff);
-            padding: 16px 20px 12px;
+            padding: 10px 16px 8px;
             text-align: center;
             color: white;
             border-radius: 24px 24px 0 0;
         }
         
         .gcash-header .gcash-logo {
-            font-size: 22px;
+            font-size: 17px;
             font-weight: 900;
             letter-spacing: -1px;
-            margin-bottom: 2px;
+            margin-bottom: 1px;
         }
         
         .gcash-header .gcash-subtitle {
-            font-size: 12px;
+            font-size: 10px;
             opacity: 0.85;
         }
         
         .gcash-body {
-            padding: 14px 24px 18px;
+            padding: 8px 20px 12px;
             text-align: center;
         }
         
         .gcash-amount {
-            font-size: 26px;
+            font-size: 19px;
             font-weight: 800;
             color: #0070e0;
-            margin: 4px 0 10px;
+            margin: 1px 0 6px;
         }
         
         .gcash-amount-label {
-            font-size: 12px;
+            font-size: 10px;
             color: var(--text-light);
             font-weight: 600;
             text-transform: uppercase;
@@ -688,34 +688,34 @@
         }
         
         #qrCodeCanvas {
-            margin: 0 auto 10px;
+            margin: 0 auto 6px;
             display: flex;
             justify-content: center;
         }
         
         #qrCodeCanvas canvas,
         #qrCodeCanvas img {
-            border-radius: 12px;
+            border-radius: 10px;
             border: 3px solid #e8f4ff;
-            padding: 8px;
+            padding: 6px;
         }
         
         .gcash-instructions {
-            font-size: 11.5px;
+            font-size: 10px;
             color: var(--text-light);
-            margin-bottom: 12px;
-            line-height: 1.5;
+            margin-bottom: 8px;
+            line-height: 1.35;
             background: #f0f8ff;
-            padding: 8px 12px;
+            padding: 6px 10px;
             border-radius: 10px;
             border: 1px solid #bee3f8;
         }
         
         .gcash-qr-img {
-            width: 150px;
-            height: 150px;
-            max-width: 45vw;
-            max-height: 45vw;
+            width: 280px;
+            height: 280px;
+            max-width: 60vw;
+            max-height: 60vw;
             object-fit: contain;
             border-radius: 12px;
             border: 3px solid #e8f4ff;
@@ -724,16 +724,17 @@
 
         .gcash-confirm-btn {
             width: 100%;
-            padding: 13px;
+            padding: 10px;
             background: linear-gradient(135deg, #0070e0, #00a8ff);
             color: white;
             border: none;
+
             border-radius: 12px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 700;
             cursor: pointer;
             transition: 0.2s;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
         
         .gcash-confirm-btn:hover {
@@ -743,12 +744,12 @@
         
         .gcash-back-btn {
             width: 100%;
-            padding: 12px;
+            padding: 8px;
             background: #f7fafc;
             color: var(--text-light);
             border: 1px solid var(--border);
             border-radius: 12px;
-            font-size: 14px;
+            font-size: 11.5px;
             font-weight: 600;
             cursor: pointer;
         }
@@ -783,13 +784,23 @@
         /* Extra-short viewports (e.g. a tablet in landscape with the
            on-screen keyboard open) — shrink the QR a little further so the
            Payment Received button stays reachable with minimal scrolling. */
-        @media (max-height: 560px) {
+        @media (max-height: 700px) {
             .gcash-qr-img {
-                width: 110px;
-                height: 110px;
+                width: 190px;
+                height: 190px;
             }
             .gcash-instructions {
-                margin-bottom: 8px;
+                margin-bottom: 6px;
+            }
+        }
+
+        @media (max-height: 560px) {
+            .gcash-qr-img {
+                width: 140px;
+                height: 140px;
+            }
+            .gcash-instructions {
+                margin-bottom: 4px;
             }
         }
 
