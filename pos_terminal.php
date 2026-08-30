@@ -649,38 +649,38 @@
         
         .gcash-header {
             background: linear-gradient(135deg, #0070e0, #00a8ff);
-            padding: 22px 20px 18px;
+            padding: 16px 20px 12px;
             text-align: center;
             color: white;
             border-radius: 24px 24px 0 0;
         }
         
         .gcash-header .gcash-logo {
-            font-size: 28px;
+            font-size: 22px;
             font-weight: 900;
             letter-spacing: -1px;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         
         .gcash-header .gcash-subtitle {
-            font-size: 13px;
+            font-size: 12px;
             opacity: 0.85;
         }
         
         .gcash-body {
-            padding: 22px 24px 26px;
+            padding: 14px 24px 18px;
             text-align: center;
         }
         
         .gcash-amount {
-            font-size: 36px;
+            font-size: 26px;
             font-weight: 800;
             color: #0070e0;
-            margin: 8px 0 18px;
+            margin: 4px 0 10px;
         }
         
         .gcash-amount-label {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-light);
             font-weight: 600;
             text-transform: uppercase;
@@ -688,7 +688,7 @@
         }
         
         #qrCodeCanvas {
-            margin: 0 auto 14px;
+            margin: 0 auto 10px;
             display: flex;
             justify-content: center;
         }
@@ -701,21 +701,21 @@
         }
         
         .gcash-instructions {
-            font-size: 12px;
+            font-size: 11.5px;
             color: var(--text-light);
-            margin-bottom: 20px;
-            line-height: 1.6;
+            margin-bottom: 12px;
+            line-height: 1.5;
             background: #f0f8ff;
-            padding: 10px 14px;
+            padding: 8px 12px;
             border-radius: 10px;
             border: 1px solid #bee3f8;
         }
         
         .gcash-qr-img {
-            width: 220px;
-            height: 220px;
-            max-width: 60vw;
-            max-height: 60vw;
+            width: 150px;
+            height: 150px;
+            max-width: 45vw;
+            max-height: 45vw;
             object-fit: contain;
             border-radius: 12px;
             border: 3px solid #e8f4ff;
@@ -724,7 +724,7 @@
 
         .gcash-confirm-btn {
             width: 100%;
-            padding: 15px;
+            padding: 13px;
             background: linear-gradient(135deg, #0070e0, #00a8ff);
             color: white;
             border: none;
@@ -733,7 +733,7 @@
             font-weight: 700;
             cursor: pointer;
             transition: 0.2s;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         
         .gcash-confirm-btn:hover {
@@ -780,30 +780,16 @@
             padding: 4px 8px;
         }
 
-        /* Short viewports (tablets in landscape, or a phone/tablet with the
-           on-screen keyboard open) — shrink the GCash modal's content so the
-           Payment Received button stays reachable with little/no scrolling. */
-        @media (max-height: 700px) {
-            .gcash-header {
-                padding: 14px 20px 12px;
-            }
-            .gcash-header .gcash-logo {
-                font-size: 22px;
-            }
-            .gcash-body {
-                padding: 14px 24px 18px;
-            }
-            .gcash-amount {
-                font-size: 26px;
-                margin: 4px 0 10px;
-            }
+        /* Extra-short viewports (e.g. a tablet in landscape with the
+           on-screen keyboard open) — shrink the QR a little further so the
+           Payment Received button stays reachable with minimal scrolling. */
+        @media (max-height: 560px) {
             .gcash-qr-img {
-                width: 150px;
-                height: 150px;
+                width: 110px;
+                height: 110px;
             }
             .gcash-instructions {
-                margin-bottom: 12px;
-                padding: 8px 12px;
+                margin-bottom: 8px;
             }
         }
 
