@@ -625,8 +625,13 @@
             background: rgba(0, 0, 0, 0.65);
             backdrop-filter: blur(4px);
             justify-content: center;
-            align-items: center;
+            align-items: flex-start;
             z-index: 1100;
+            padding: 20px;
+            padding-top: max(20px, 4vh);
+            padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+            box-sizing: border-box;
+            overflow-y: auto;
         }
         
         .gcash-modal {
@@ -634,7 +639,11 @@
             border-radius: 24px;
             width: 90%;
             max-width: 400px;
-            overflow: hidden;
+            max-height: calc(100vh - 170px);
+            max-height: calc(100dvh - 170px);
+            overflow-x: hidden;
+            overflow-y: auto;
+            margin: auto;
             animation: modalPop 0.3s ease-out;
         }
         
@@ -643,6 +652,7 @@
             padding: 22px 20px 18px;
             text-align: center;
             color: white;
+            border-radius: 24px 24px 0 0;
         }
         
         .gcash-header .gcash-logo {
@@ -701,6 +711,17 @@
             border: 1px solid #bee3f8;
         }
         
+        .gcash-qr-img {
+            width: 220px;
+            height: 220px;
+            max-width: 60vw;
+            max-height: 60vw;
+            object-fit: contain;
+            border-radius: 12px;
+            border: 3px solid #e8f4ff;
+            padding: 6px;
+        }
+
         .gcash-confirm-btn {
             width: 100%;
             padding: 15px;
@@ -757,6 +778,33 @@
             color: var(--text-light);
             cursor: pointer;
             padding: 4px 8px;
+        }
+
+        /* Short viewports (tablets in landscape, or a phone/tablet with the
+           on-screen keyboard open) — shrink the GCash modal's content so the
+           Payment Received button stays reachable with little/no scrolling. */
+        @media (max-height: 700px) {
+            .gcash-header {
+                padding: 14px 20px 12px;
+            }
+            .gcash-header .gcash-logo {
+                font-size: 22px;
+            }
+            .gcash-body {
+                padding: 14px 24px 18px;
+            }
+            .gcash-amount {
+                font-size: 26px;
+                margin: 4px 0 10px;
+            }
+            .gcash-qr-img {
+                width: 150px;
+                height: 150px;
+            }
+            .gcash-instructions {
+                margin-bottom: 12px;
+                padding: 8px 12px;
+            }
         }
 
         @media (max-width: 900px) {
@@ -969,7 +1017,7 @@
                 <div class="gcash-amount-label">Amount to Pay</div>
                 <div class="gcash-amount" id="gcashAmount">₱0.00</div>
                 <div id="qrCodeCanvas">
-<img src="Qr.jpg"                        alt="GCash QR" style="width:280px;height:280px;object-fit:contain;border-radius:12px;border:3px solid #e8f4ff;padding:6px;"></div>
+<img src="Qr.jpg" alt="GCash QR" class="gcash-qr-img"></div>
                 <div class="gcash-instructions">
                     📱 Open your <strong>GCash app</strong> → tap <strong>Pay QR</strong> → scan the code above.<br> Ask customer to show payment confirmation before proceeding.
                 </div>
