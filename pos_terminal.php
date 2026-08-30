@@ -634,7 +634,8 @@
             border-radius: 24px;
             width: 90%;
             max-width: 400px;
-            overflow: hidden;
+            max-height: 92vh;
+            overflow-y: auto;
             animation: modalPop 0.3s ease-out;
         }
         
@@ -734,6 +735,54 @@
         
         .gcash-back-btn:hover {
             background: #edf2f7;
+        }
+
+        .gcash-qr-img {
+            width: 280px;
+            height: 280px;
+            object-fit: contain;
+            border-radius: 12px;
+            border: 3px solid #e8f4ff;
+            padding: 6px;
+        }
+
+        /* On short/landscape screens (common on tablets held sideways),
+           shrink the QR and spacing so the whole modal — including the
+           Payment Received button — fits without needing to scroll. */
+        @media (max-height: 560px) {
+            .gcash-header {
+                padding: 12px 20px 10px;
+            }
+            .gcash-header .gcash-logo {
+                font-size: 20px;
+                margin-bottom: 2px;
+            }
+            .gcash-header .gcash-subtitle {
+                font-size: 11px;
+            }
+            .gcash-body {
+                padding: 12px 24px 16px;
+            }
+            .gcash-amount {
+                font-size: 26px;
+                margin: 4px 0 10px;
+            }
+            .gcash-qr-img {
+                width: 150px;
+                height: 150px;
+            }
+            .gcash-instructions {
+                margin-bottom: 12px;
+                padding: 8px 12px;
+                font-size: 11px;
+            }
+            .gcash-confirm-btn {
+                padding: 11px;
+                margin-bottom: 6px;
+            }
+            .gcash-back-btn {
+                padding: 9px;
+            }
         }
 
         /* ============================================================
@@ -969,7 +1018,7 @@
                 <div class="gcash-amount-label">Amount to Pay</div>
                 <div class="gcash-amount" id="gcashAmount">₱0.00</div>
                 <div id="qrCodeCanvas">
-<img src="Qr.jpg"                        alt="GCash QR" style="width:280px;height:280px;object-fit:contain;border-radius:12px;border:3px solid #e8f4ff;padding:6px;"></div>
+                    <img src="Qr.jpg" alt="GCash QR" class="gcash-qr-img"></div>
                 <div class="gcash-instructions">
                     📱 Open your <strong>GCash app</strong> → tap <strong>Pay QR</strong> → scan the code above.<br> Ask customer to show payment confirmation before proceeding.
                 </div>
