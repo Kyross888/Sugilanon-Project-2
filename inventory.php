@@ -197,22 +197,33 @@
             /* Hidden until triggered */
             position: fixed;
             z-index: 100;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
+            inset: 0;
             background-color: rgba(0, 0, 0, 0.5);
             /* Semi-transparent backdrop */
+            justify-content: center;
+            align-items: flex-start;
+            padding: 20px;
+            padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
+            box-sizing: border-box;
+            overflow-y: auto;
+        }
+
+        .modal.show {
+            display: flex;
         }
         
         .modal-content {
             background-color: white;
-            margin: 10% auto;
-            /* Centers the modal vertically and horizontally */
+            width: 90%;
+            max-width: 400px;
+            max-height: calc(100vh - 170px);
+            max-height: calc(100dvh - 170px);
+            overflow-y: auto;
             padding: 25px;
-            width: 400px;
             border-radius: 12px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+            box-sizing: border-box;
+            margin: auto;
         }
         
         .form-group {
@@ -496,12 +507,12 @@
         }
 
         function openModal() {
-            document.getElementById('productModal').style.display = 'block';
+            document.getElementById('productModal').classList.add('show');
         }
 
         function closeModal() {
             editingId = null;
-            document.getElementById('productModal').style.display = 'none';
+            document.getElementById('productModal').classList.remove('show');
             document.getElementById('currentImgPreview').style.display = 'none';
             document.getElementById('prodImage').value = '';
         }
