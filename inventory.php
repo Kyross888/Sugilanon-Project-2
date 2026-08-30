@@ -219,31 +219,44 @@
             max-height: calc(100vh - 170px);
             max-height: calc(100dvh - 170px);
             overflow-y: auto;
-            padding: 25px;
+            padding: 18px 20px;
             border-radius: 12px;
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
             box-sizing: border-box;
             margin: auto;
         }
+
+        .modal-content h3 {
+            margin: 0 0 12px;
+            font-size: 17px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
         
         .form-group {
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         
         .form-group label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
             font-weight: 600;
             color: var(--dark);
+            font-size: 13px;
         }
         
         .form-group input,
         .form-group select {
             width: 100%;
-            padding: 10px;
+            padding: 8px 10px;
             border: 1px solid #ddd;
             border-radius: 6px;
             box-sizing: border-box;
+            font-size: 14px;
             /* Ensures padding doesn't affect total width */
         }
         
@@ -252,14 +265,14 @@
             justify-content: flex-end;
             /* Pushes buttons to the right */
             gap: 10px;
-            margin-top: 20px;
+            margin-top: 14px;
         }
         
         .btn-cancel {
             background: #edf2f7;
             color: #4a5568;
             border: none;
-            padding: 10px 15px;
+            padding: 9px 15px;
             border-radius: 6px;
             cursor: pointer;
         }
@@ -345,13 +358,15 @@
                         <option value="Drinks">Drinks</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label>Price (₱)</label>
-                    <input type="number" id="prodPrice" required placeholder="0.00" step="0.01">
-                </div>
-                <div class="form-group">
-                    <label>Initial Stock</label>
-                    <input type="number" id="prodStock" required placeholder="0">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Price (₱)</label>
+                        <input type="number" id="prodPrice" required placeholder="0.00" step="0.01">
+                    </div>
+                    <div class="form-group">
+                        <label>Initial Stock</label>
+                        <input type="number" id="prodStock" required placeholder="0">
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Product Image <span id="imgHint" style="font-weight:400;color:#718096;">(optional)</span></label>
