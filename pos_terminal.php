@@ -625,62 +625,52 @@
             background: rgba(0, 0, 0, 0.65);
             backdrop-filter: blur(4px);
             justify-content: center;
-            align-items: flex-start;
+            align-items: center;
             z-index: 1100;
-            padding: 20px;
-            padding-top: max(20px, 4vh);
-            padding-bottom: max(20px, env(safe-area-inset-bottom, 20px));
-            box-sizing: border-box;
-            overflow-y: auto;
         }
         
         .gcash-modal {
             background: white;
             border-radius: 24px;
             width: 90%;
-            max-width: 380px;
-            max-height: calc(100vh - 170px);
-            max-height: calc(100dvh - 170px);
-            overflow-x: hidden;
-            overflow-y: auto;
-            margin: auto;
+            max-width: 400px;
+            overflow: hidden;
             animation: modalPop 0.3s ease-out;
         }
         
         .gcash-header {
             background: linear-gradient(135deg, #0070e0, #00a8ff);
-            padding: 10px 16px 8px;
+            padding: 22px 20px 18px;
             text-align: center;
             color: white;
-            border-radius: 24px 24px 0 0;
         }
         
         .gcash-header .gcash-logo {
-            font-size: 17px;
+            font-size: 28px;
             font-weight: 900;
             letter-spacing: -1px;
-            margin-bottom: 1px;
+            margin-bottom: 4px;
         }
         
         .gcash-header .gcash-subtitle {
-            font-size: 10px;
+            font-size: 13px;
             opacity: 0.85;
         }
         
         .gcash-body {
-            padding: 8px 20px 12px;
+            padding: 22px 24px 26px;
             text-align: center;
         }
         
         .gcash-amount {
-            font-size: 19px;
+            font-size: 36px;
             font-weight: 800;
             color: #0070e0;
-            margin: 1px 0 6px;
+            margin: 8px 0 18px;
         }
         
         .gcash-amount-label {
-            font-size: 10px;
+            font-size: 13px;
             color: var(--text-light);
             font-weight: 600;
             text-transform: uppercase;
@@ -688,53 +678,41 @@
         }
         
         #qrCodeCanvas {
-            margin: 0 auto 6px;
+            margin: 0 auto 14px;
             display: flex;
             justify-content: center;
         }
         
         #qrCodeCanvas canvas,
         #qrCodeCanvas img {
-            border-radius: 10px;
+            border-radius: 12px;
             border: 3px solid #e8f4ff;
-            padding: 6px;
+            padding: 8px;
         }
         
         .gcash-instructions {
-            font-size: 10px;
+            font-size: 12px;
             color: var(--text-light);
-            margin-bottom: 8px;
-            line-height: 1.35;
+            margin-bottom: 20px;
+            line-height: 1.6;
             background: #f0f8ff;
-            padding: 6px 10px;
+            padding: 10px 14px;
             border-radius: 10px;
             border: 1px solid #bee3f8;
         }
         
-        .gcash-qr-img {
-            width: 280px;
-            height: 280px;
-            max-width: 60vw;
-            max-height: 60vw;
-            object-fit: contain;
-            border-radius: 12px;
-            border: 3px solid #e8f4ff;
-            padding: 6px;
-        }
-
         .gcash-confirm-btn {
             width: 100%;
-            padding: 10px;
+            padding: 15px;
             background: linear-gradient(135deg, #0070e0, #00a8ff);
             color: white;
             border: none;
-
             border-radius: 12px;
-            font-size: 14px;
+            font-size: 15px;
             font-weight: 700;
             cursor: pointer;
             transition: 0.2s;
-            margin-bottom: 6px;
+            margin-bottom: 10px;
         }
         
         .gcash-confirm-btn:hover {
@@ -744,12 +722,12 @@
         
         .gcash-back-btn {
             width: 100%;
-            padding: 8px;
+            padding: 12px;
             background: #f7fafc;
             color: var(--text-light);
             border: 1px solid var(--border);
             border-radius: 12px;
-            font-size: 11.5px;
+            font-size: 14px;
             font-weight: 600;
             cursor: pointer;
         }
@@ -779,29 +757,6 @@
             color: var(--text-light);
             cursor: pointer;
             padding: 4px 8px;
-        }
-
-        /* Extra-short viewports (e.g. a tablet in landscape with the
-           on-screen keyboard open) — shrink the QR a little further so the
-           Payment Received button stays reachable with minimal scrolling. */
-        @media (max-height: 700px) {
-            .gcash-qr-img {
-                width: 190px;
-                height: 190px;
-            }
-            .gcash-instructions {
-                margin-bottom: 6px;
-            }
-        }
-
-        @media (max-height: 560px) {
-            .gcash-qr-img {
-                width: 140px;
-                height: 140px;
-            }
-            .gcash-instructions {
-                margin-bottom: 4px;
-            }
         }
 
         @media (max-width: 900px) {
@@ -1014,7 +969,7 @@
                 <div class="gcash-amount-label">Amount to Pay</div>
                 <div class="gcash-amount" id="gcashAmount">₱0.00</div>
                 <div id="qrCodeCanvas">
-<img src="Qr.jpg" alt="GCash QR" class="gcash-qr-img"></div>
+<img src="Qr.jpg"                        alt="GCash QR" style="width:280px;height:280px;object-fit:contain;border-radius:12px;border:3px solid #e8f4ff;padding:6px;"></div>
                 <div class="gcash-instructions">
                     📱 Open your <strong>GCash app</strong> → tap <strong>Pay QR</strong> → scan the code above.<br> Ask customer to show payment confirmation before proceeding.
                 </div>
