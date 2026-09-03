@@ -1793,21 +1793,103 @@ function addToCart(productId, name, price) {
             document.getElementById('payOverlay').style.display = 'flex';
         }
 
-        function confirmGCashPayment() {
+        async function confirmGCashPayment() {
+            // Guard against double-tap while the request is in flight.
+            if (isProcessingOrder) return;
+            isProcessingOrder = true;
+
             document.getElementById('gcashOverlay').style.display = 'none';
+
+            const subtotalRaw = cart.reduce((s, i) => s + i.price * i.quantity, 0);
+            const discountRaw = document.getElementById('applyDiscount').checked ? subtotalRaw * 0.20 : 0;
+            let couponDiscRaw = 0;
+            if (isCouponApplied) couponDiscRaw = Math.min(subtotalRaw - discountRaw, 500);
+            const totalRaw = Math.max(0, subtotalRaw - discountRaw - couponDiscRaw);
+
+            let refNo = null;
+
+            if (usingDB) {
+                const payload = {
+                    items: cart.map(i => ({
+                        product_id: i.product_id,
+                        name: i.name,
+                        price: i.price,
+                        quantity: i.quantity,
+                    })),
+                    order_type: diningOption,
+                    payment_method: 'GCash',
+                    subtotal: subtotalRaw,
+                    discount: discountRaw,
+                    coupon_discount: couponDiscRaw,
+                    total: totalRaw,
+                };
+
+                try {
+                    const res = await api.orders.place(payload);
+                    if (!res.success) {
+                        alert('Order failed: ' + (res.error || 'Unknown error'));
+                        isProcessingOrder = false;
+                        // Let the cashier try again from the payment method screen.
+                        const total = document.getElementById('total').innerText;
+                        document.getElementById('payModalTotal').innerText = total;
+                        document.getElementById('payOverlay').style.display = 'flex';
+                        return;
+                    }
+                    refNo = res.reference_no;
+                } catch (err) {
+                    alert('Network error. Please try again.');
+                    isProcessingOrder = false;
+                    const total = document.getElementById('total').innerText;
+                    document.getElementById('payModalTotal').innerText = total;
+                    document.getElementById('payOverlay').style.display = 'flex';
+                    return;
+                }
+            } else {
+                refNo = 'REF-' + Math.floor(100000 + Math.random() * 900000);
+            }
+
+            orderAlreadyPlaced = true;
+            document.getElementById('order-id').innerText = refNo || 'New Order';
+
             const total = document.getElementById('total').innerText;
-            document.getElementById('final-total-msg').innerText =
-                `GCash Payment — Total: ${total}`;
+            document.getElementById('final-total-msg').innerHTML =
+                `GCash Payment — Total: ${total}<br>` +
+                `<span style="display:inline-block;margin-top:10px;padding:6px 16px;background:#eef2ff;color:#4f46e5;border-radius:999px;font-weight:800;font-size:13px;letter-spacing:0.3px;">` +
+                `Ref No: ${refNo}</span>`;
             document.getElementById('orderOverlay').style.display = 'flex';
+            isProcessingOrder = false;
         }
 
         // ✅ FIX: Guard flag — prevents duplicate transactions when button is clicked
         //         multiple times while the network request is still in progress.
         let isProcessingOrder = false;
 
+        // Tracks whether the order was already saved to the database at the
+        // GCash "Payment Received" step, so the follow-up "Start New
+        // Transaction" button on the success screen doesn't save it again.
+        let orderAlreadyPlaced = false;
+
         async function closeOrder() {
             // Block if already saving — this is what caused duplicate transactions
             if (isProcessingOrder) return;
+
+            // GCash orders are already saved to the database at the "Payment
+            // Received" step (so the reference number can be shown right
+            // away) — this button just needs to reset the screen, not save
+            // the order again.
+            if (orderAlreadyPlaced) {
+                orderAlreadyPlaced = false;
+                cart = [];
+                isCouponApplied = false;
+                document.getElementById('couponCode').value = '';
+                document.getElementById('applyDiscount').checked = false;
+                document.getElementById('orderOverlay').style.display = 'none';
+                renderCart();
+                closeMobilePanels();
+                if (usingDB) loadProducts();
+                return;
+            }
+
             isProcessingOrder = true;
 
             // Disable button & show loading text so user knows it's working
@@ -1882,6 +1964,8 @@ function addToCart(productId, name, price) {
 
     <!-- PWA Registration -->
     <script src="js/pwa.js"></script>
+    <!-- Live Notifications (GCash payments, etc.) -->
+    <script src="js/notifications.js"></script>
 </body>
 
 </html>
