@@ -655,6 +655,7 @@ function fmt(n) {
 
     <!-- PWA Registration -->
     <script src="pwa.js"></script>
+    <script src="notifications.js"></script>
 </body>
 
 </html><?php
