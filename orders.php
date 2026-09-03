@@ -23,11 +23,19 @@ if ($action === 'place') {
     $coupon_discount= (float)($body['coupon_discount'] ?? 0);
     $total          = (float)($body['total']          ?? 0);
     $customer_id    = $body['customer_id']     ?? null;
+    $gcash_reference= trim($body['gcash_reference'] ?? '');
 
     if (empty($items)) respond(['success' => false, 'error' => 'No items in order.'], 400);
 
-    // Generate reference number
-    $ref = 'REF-' . strtoupper(substr(uniqid(), -6));
+    if ($payment_method === 'GCash' && $gcash_reference !== '') {
+        // Use the real GCash reference number the cashier read off the
+        // customer's phone, so it matches what the customer sees.
+        $ref = $gcash_reference;
+    } else {
+        // Non-GCash orders (or GCash without a captured ref, e.g. legacy
+        // clients) fall back to an internally generated reference number.
+        $ref = 'REF-' . strtoupper(substr(uniqid(), -6));
+    }
 
     $pdo->beginTransaction();
     try {
