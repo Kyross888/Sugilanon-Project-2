@@ -1022,6 +1022,16 @@
                 <div class="gcash-instructions">
                     📱 Open your <strong>GCash app</strong> → tap <strong>Pay QR</strong> → scan the code above.<br> Ask customer to show payment confirmation before proceeding.
                 </div>
+                <div class="gcash-refno-field" style="margin:14px 0;text-align:left;">
+                    <label for="gcashRefInput" style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">
+                        GCash Reference No. <span style="font-weight:400;color:#9ca3af;">(from customer's receipt)</span>
+                    </label>
+                    <input type="text" id="gcashRefInput" placeholder="e.g. 0044 655 680574"
+                        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;">
+                    <div id="gcashRefError" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;">
+                        Please enter the GCash reference number shown on the customer's app.
+                    </div>
+                </div>
                 <button class="gcash-confirm-btn" onclick="confirmGCashPayment()">
                     <i class="fa-solid fa-circle-check" style="margin-right:8px;"></i>Payment Received
                 </button>
@@ -1783,6 +1793,9 @@ function addToCart(productId, name, price) {
         function showGCashQR() {
             const totalText = document.getElementById('total').innerText;
             document.getElementById('gcashAmount').innerText = totalText;
+            // Reset the reference field each time the QR modal is opened
+            document.getElementById('gcashRefInput').value = '';
+            document.getElementById('gcashRefError').style.display = 'none';
             document.getElementById('gcashOverlay').style.display = 'flex';
         }
 
@@ -1796,6 +1809,18 @@ function addToCart(productId, name, price) {
         async function confirmGCashPayment() {
             // Guard against double-tap while the request is in flight.
             if (isProcessingOrder) return;
+
+            // The reference number typed here must match what the customer
+            // sees on their own GCash app/receipt — it is NOT auto-generated.
+            const gcashRefInput = document.getElementById('gcashRefInput');
+            const gcashRef = gcashRefInput.value.trim();
+            if (!gcashRef) {
+                document.getElementById('gcashRefError').style.display = 'block';
+                gcashRefInput.focus();
+                return;
+            }
+            document.getElementById('gcashRefError').style.display = 'none';
+
             isProcessingOrder = true;
 
             document.getElementById('gcashOverlay').style.display = 'none';
@@ -1822,6 +1847,9 @@ function addToCart(productId, name, price) {
                     discount: discountRaw,
                     coupon_discount: couponDiscRaw,
                     total: totalRaw,
+                    // Actual GCash reference number entered by the cashier,
+                    // read straight off the customer's payment confirmation.
+                    gcash_reference: gcashRef,
                 };
 
                 try {
@@ -1845,7 +1873,9 @@ function addToCart(productId, name, price) {
                     return;
                 }
             } else {
-                refNo = 'REF-' + Math.floor(100000 + Math.random() * 900000);
+                // Offline/demo mode — no database, so just echo back what the
+                // cashier entered rather than making one up.
+                refNo = gcashRef;
             }
 
             orderAlreadyPlaced = true;
