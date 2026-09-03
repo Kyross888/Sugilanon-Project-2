@@ -1018,7 +1018,7 @@
                 <div class="gcash-amount-label">Amount to Pay</div>
                 <div class="gcash-amount" id="gcashAmount">₱0.00</div>
                 <div id="qrCodeCanvas">
-                    <img src="Qr.jpg" alt="GCash QR" class="gcash-qr-img"></div>
+                    <img src="Qr.png" alt="GCash QR" class="gcash-qr-img"></div>
                 <div class="gcash-instructions">
                     📱 Open your <strong>GCash app</strong> → tap <strong>Pay QR</strong> → scan the code above.<br> Ask customer to show payment confirmation before proceeding.
                 </div>
