@@ -68,6 +68,21 @@ if (isset($_GET['action'])) {
         respond(['success' => true, 'data' => $stmt->fetch()]);
     }
 
+    if ($action === 'total_discounts') {
+        // All-time total discounts + coupon discounts given, and how
+        // many completed transactions actually had one applied.
+        $stmt = $pdo->prepare("
+            SELECT
+                COALESCE(SUM(discount), 0)        AS total_discount,
+                COALESCE(SUM(coupon_discount), 0) AS total_coupon_discount,
+                COUNT(*) FILTER (WHERE discount > 0 OR coupon_discount > 0) AS discounted_orders
+            FROM transactions
+            WHERE status = 'completed'
+        ");
+        $stmt->execute();
+        respond(['success' => true, 'data' => $stmt->fetch()]);
+    }
+
     if ($action === 'monthly_revenue') {
         // Show all-time daily revenue from the very first transaction
         $stmt = $pdo->prepare("
@@ -644,6 +659,17 @@ if (isset($_GET['action'])) {
                 <!-- Stats Header -->
                 <div class="flex items-center gap-4 mb-8">
                     <h1 class="text-3xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Executive Summary</h1>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mb-8 flex items-center gap-5">
+                    <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center shrink-0">
+                        <i class="fas fa-tags text-rose-500 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Discounts</h3>
+                        <p class="text-2xl md:text-3xl font-black text-rose-500" id="stat-total-discounts">₱0.00</p>
+                        <p class="text-xs text-slate-400 mt-1" id="stat-discounts-sub">Discounts &amp; coupons applied</p>
+                    </div>
                 </div>
 
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
@@ -1329,7 +1355,7 @@ if (isset($_GET['action'])) {
             document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('is-active'); l.classList.add('is-inactive'); });
             const al = document.getElementById('nav-' + pageId);
             if (al) { al.classList.remove('is-inactive'); al.classList.add('is-active'); }
-            if (pageId === 'stats' && !chartsRendered) { initCharts(); loadTopMoving(); chartsRendered = true; }
+            if (pageId === 'stats' && !chartsRendered) { initCharts(); loadTopMoving(); loadTotalDiscounts(); chartsRendered = true; }
             if (pageId === 'live') { startLiveFeed(); } else { stopLiveFeed(); }
         }
 
@@ -1519,6 +1545,23 @@ if (isset($_GET['action'])) {
         }
 
         // ── Charts ─────────────────────────────────────────────
+        async function loadTotalDiscounts() {
+            const amountEl = document.getElementById('stat-total-discounts');
+            const subEl    = document.getElementById('stat-discounts-sub');
+            try {
+                const res = await fetch('admin.php?action=total_discounts', { credentials: 'same-origin' }).then(r => r.json());
+                if (!res.success) return;
+                const total = (parseFloat(res.data.total_discount) || 0) + (parseFloat(res.data.total_coupon_discount) || 0);
+                const count = parseInt(res.data.discounted_orders) || 0;
+                amountEl.textContent = '₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+                subEl.textContent = count > 0
+                    ? `Discounts & coupons applied on ${count} order${count !== 1 ? 's' : ''}`
+                    : 'Discounts & coupons applied';
+            } catch (_) {
+                amountEl.textContent = '—';
+            }
+        }
+
         async function loadTopMoving() {
             const tbody   = document.getElementById('top-moving-tbody');
             const cardsEl = document.getElementById('top-moving-cards');
