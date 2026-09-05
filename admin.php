@@ -666,7 +666,8 @@ if (isset($_GET['action'])) {
                     <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
                         <h3 class="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm"><i class="fas fa-fire text-rose-500 mr-1"></i> Top Moving Items</h3>
                     </div>
-                    <div class="overflow-x-auto">
+                    <!-- Desktop table -->
+                    <div class="hidden md:block overflow-x-auto">
                         <table class="w-full text-left">
                             <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-400 text-[10px] uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                                 <tr>
@@ -680,6 +681,12 @@ if (isset($_GET['action'])) {
                                 <tr><td colspan="4" class="px-8 py-8 text-center text-slate-400">Loading…</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                    <!-- Mobile card list: product, status and the performance
+                         bar all stack vertically, so nothing needs a sideways
+                         swipe to be seen. -->
+                    <div id="top-moving-cards" class="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+                        <div class="px-6 py-8 text-center text-slate-400 text-sm">Loading…</div>
                     </div>
                 </div>
             </main>
@@ -1503,15 +1510,17 @@ if (isset($_GET['action'])) {
 
         // ── Charts ─────────────────────────────────────────────
         async function loadTopMoving() {
-            const tbody = document.getElementById('top-moving-tbody');
+            const tbody   = document.getElementById('top-moving-tbody');
+            const cardsEl = document.getElementById('top-moving-cards');
             try {
                 const res = await fetch('admin.php?action=top_moving', { credentials: 'same-origin' }).then(r => r.json());
                 if (!res.success || !res.data.length) {
                     tbody.innerHTML = '<tr><td colspan="4" class="px-8 py-8 text-center text-slate-400">No sales data yet.</td></tr>';
+                    if (cardsEl) cardsEl.innerHTML = '<div class="px-6 py-8 text-center text-slate-400 text-sm">No sales data yet.</div>';
                     return;
                 }
                 const maxQty = Math.max(...res.data.map(p => parseInt(p.total_qty)));
-                tbody.innerHTML = res.data.map(p => {
+                const rows = res.data.map(p => {
                     const qty = parseInt(p.total_qty);
                     const pct = Math.round((qty / maxQty) * 100);
                     let status, statusColor, barColor;
@@ -1522,7 +1531,11 @@ if (isset($_GET['action'])) {
                     } else {
                         status = 'Low';         statusColor = 'text-amber-400';   barColor = 'bg-amber-400';
                     }
-                    return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    return { p, qty, pct, status, statusColor, barColor };
+                });
+
+                tbody.innerHTML = rows.map(({ p, qty, pct, status, statusColor, barColor }) =>
+                    `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                         <td class="px-8 py-5 font-bold text-slate-800 dark:text-slate-200">${p.name}</td>
                         <td class="px-8 py-5 text-slate-500 dark:text-slate-400">${qty.toLocaleString()}</td>
                         <td class="px-8 py-5 font-semibold ${statusColor}">${status}</td>
@@ -1531,10 +1544,28 @@ if (isset($_GET['action'])) {
                                 <div class="h-full ${barColor} rounded-full" style="width:${pct}%"></div>
                             </div>
                         </td>
-                    </tr>`;
-                }).join('');
+                    </tr>`
+                ).join('');
+
+                // Mobile: product + status on top, full-width performance
+                // bar below it — no columns to squeeze side-by-side.
+                if (cardsEl) {
+                    cardsEl.innerHTML = rows.map(({ p, qty, pct, status, statusColor, barColor }) =>
+                        `<div class="px-6 py-4">
+                            <div class="flex items-center justify-between gap-2 mb-1">
+                                <p class="font-bold text-slate-800 dark:text-slate-200 text-sm">${p.name}</p>
+                                <span class="font-semibold ${statusColor} text-xs shrink-0">${status}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mb-2">${qty.toLocaleString()} units sold</p>
+                            <div class="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                                <div class="h-full ${barColor} rounded-full" style="width:${pct}%"></div>
+                            </div>
+                        </div>`
+                    ).join('');
+                }
             } catch (_) {
                 tbody.innerHTML = '<tr><td colspan="4" class="px-8 py-8 text-center text-red-400">Failed to load.</td></tr>';
+                if (cardsEl) cardsEl.innerHTML = '<div class="px-6 py-8 text-center text-red-400 text-sm">Failed to load.</div>';
             }
         }
 
