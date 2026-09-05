@@ -50,13 +50,13 @@ if (isset($_GET['action'])) {
             $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE (branch_id = ? OR branch_id IS NULL) AND DATE(created_at) = ?::date AND status = 'completed'");
             $kpi->execute([$branchId, $date]);
             $kpiRow = $kpi->fetch();
-            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE (t.branch_id = ? OR t.branch_id IS NULL) AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.discount, t.coupon_discount, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE (t.branch_id = ? OR t.branch_id IS NULL) AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
             $txns->execute([$branchId, $date]);
         } else {
             $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE DATE(created_at) = ?::date AND status = 'completed'");
             $kpi->execute([$date]);
             $kpiRow = $kpi->fetch();
-            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.discount, t.coupon_discount, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
             $txns->execute([$date]);
         }
         respond(['success' => true, 'kpi' => $kpiRow, 'transactions' => $txns->fetchAll()]);
@@ -408,11 +408,12 @@ if (isset($_GET['action'])) {
                             <th class="px-6 py-4 font-bold">Date &amp; Time</th>
                             <th class="px-6 py-4 font-bold">Items Bought</th>
                             <th class="px-6 py-4 font-bold">Payment</th>
+                            <th class="px-6 py-4 font-bold">Discount</th>
                             <th class="px-6 py-4 font-bold text-right">Amount</th>
                         </tr>
                     </thead>
                     <tbody id="history-modal-body" class="text-sm divide-y divide-slate-100">
-                        <tr><td colspan="4" class="text-center py-8 text-slate-400">Loading…</td></tr>
+                        <tr><td colspan="5" class="text-center py-8 text-slate-400">Loading…</td></tr>
                     </tbody>
                 </table>
                 <!-- Mobile card list: everything (date, items, amount) stacks
@@ -1154,7 +1155,7 @@ if (isset($_GET['action'])) {
             try {
                 const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
                 if (!res.success || !res.transactions.length) {
-                    tbody.innerHTML   = `<tr><td colspan="4" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
+                    tbody.innerHTML   = `<tr><td colspan="5" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
                     if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">No transactions for this branch on the selected date.</div>`;
                     return;
                 }
@@ -1164,6 +1165,12 @@ if (isset($_GET['action'])) {
                         ? 'bg-blue-50 text-blue-600'
                         : 'bg-emerald-50 text-emerald-600';
                     return `<span class="px-2 py-1 rounded-full text-[10px] font-bold ${color}">${m}</span>`;
+                };
+                const discountCell = (t) => {
+                    const amt = (parseFloat(t.discount) || 0) + (parseFloat(t.coupon_discount) || 0);
+                    return amt > 0
+                        ? `<span class="text-rose-500 font-bold">− ₱${amt.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>`
+                        : `<span class="text-slate-300">—</span>`;
                 };
                 tbody.innerHTML = res.transactions.map(t => {
                     const dt        = parseUTC(t.created_at);
@@ -1179,6 +1186,7 @@ if (isset($_GET['action'])) {
                             <p class="text-xs text-slate-400 mt-0.5"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
                         </td>
                         <td class="px-6 py-4">${methodBadge(t.payment_method)}</td>
+                        <td class="px-6 py-4 text-sm">${discountCell(t)}</td>
                         <td class="px-6 py-4 text-right font-black text-emerald-600 text-lg">
                             ₱ ${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                         </td>
@@ -1193,6 +1201,7 @@ if (isset($_GET['action'])) {
                         const dt        = parseUTC(t.created_at);
                         const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
                         const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
+                        const discAmt   = (parseFloat(t.discount) || 0) + (parseFloat(t.coupon_discount) || 0);
                         return `<div class="p-4">
                             <div class="flex items-center justify-between gap-2 mb-1">
                                 <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${dateLabel} · ${time}</span>
@@ -1203,11 +1212,12 @@ if (isset($_GET['action'])) {
                                 <p class="text-xs text-slate-400"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
                                 ${methodBadge(t.payment_method)}
                             </div>
+                            ${discAmt > 0 ? `<p class="text-xs text-rose-500 font-bold mt-1">− ₱${discAmt.toLocaleString('en-PH', { minimumFractionDigits: 2 })} discount applied</p>` : ''}
                         </div>`;
                     }).join('');
                 }
             } catch (_) {
-                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
                 if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-red-400 text-sm">Failed to load.</div>`;
             }
         }
