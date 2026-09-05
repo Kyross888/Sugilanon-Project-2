@@ -83,6 +83,34 @@ if (isset($_GET['action'])) {
         respond(['success' => true, 'data' => $stmt->fetch()]);
     }
 
+    if ($action === 'total_discounts') {
+        // Optional ?date=YYYY-MM-DD scopes to that day (used by Sales
+        // Overview's Today/Yesterday/custom date filter). No date = all-time.
+        $date = $_GET['date'] ?? null;
+        if ($date) {
+            $stmt = $pdo->prepare("
+                SELECT
+                    COALESCE(SUM(discount), 0)        AS total_discount,
+                    COALESCE(SUM(coupon_discount), 0) AS total_coupon_discount,
+                    COUNT(*) FILTER (WHERE discount > 0 OR coupon_discount > 0) AS discounted_orders
+                FROM transactions
+                WHERE status = 'completed' AND DATE(created_at) = ?::date
+            ");
+            $stmt->execute([$date]);
+        } else {
+            $stmt = $pdo->prepare("
+                SELECT
+                    COALESCE(SUM(discount), 0)        AS total_discount,
+                    COALESCE(SUM(coupon_discount), 0) AS total_coupon_discount,
+                    COUNT(*) FILTER (WHERE discount > 0 OR coupon_discount > 0) AS discounted_orders
+                FROM transactions
+                WHERE status = 'completed'
+            ");
+            $stmt->execute();
+        }
+        respond(['success' => true, 'data' => $stmt->fetch()]);
+    }
+
     if ($action === 'monthly_revenue') {
         // Show all-time daily revenue from the very first transaction
         $stmt = $pdo->prepare("
@@ -661,17 +689,6 @@ if (isset($_GET['action'])) {
                     <h1 class="text-3xl md:text-4xl font-black text-slate-900 dark:text-white uppercase tracking-tight">Executive Summary</h1>
                 </div>
 
-                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mb-8 flex items-center gap-5">
-                    <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center shrink-0">
-                        <i class="fas fa-tags text-rose-500 text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Discounts</h3>
-                        <p class="text-2xl md:text-3xl font-black text-rose-500" id="stat-total-discounts">₱0.00</p>
-                        <p class="text-xs text-slate-400 mt-1" id="stat-discounts-sub">Discounts &amp; coupons applied</p>
-                    </div>
-                </div>
-
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     <div class="lg:col-span-2 bg-white dark:bg-slate-800 p-8 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300">
                         <h3 class="text-slate-700 dark:text-slate-300 font-black text-base uppercase tracking-tight mb-6">Money Earned Each Month</h3>
@@ -760,6 +777,17 @@ if (isset($_GET['action'])) {
                         <a href="#" onclick="switchPage('live')" class="group flex items-center gap-2 px-6 py-3.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-200 dark:shadow-indigo-900/20 hover:-translate-y-0.5">
                             <i class="fas fa-satellite-dish animate-pulse"></i> Open Live View
                         </a>
+                    </div>
+                </div>
+
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mb-6 flex items-center gap-5">
+                    <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center shrink-0">
+                        <i class="fas fa-tags text-rose-500 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Discounts</h3>
+                        <p class="text-2xl md:text-3xl font-black text-rose-500" id="stat-total-discounts">₱0.00</p>
+                        <p class="text-xs text-slate-400 mt-1" id="stat-discounts-sub">Discounts &amp; coupons applied</p>
                     </div>
                 </div>
 
@@ -953,6 +981,7 @@ if (isset($_GET['action'])) {
             }
             syncDateUI();
             loadAllBranchesFromDB();
+            loadTotalDiscounts();
         }
 
         function setSalesDate() {
@@ -963,6 +992,7 @@ if (isset($_GET['action'])) {
             }
             syncDateUI();
             loadAllBranchesFromDB();
+            loadTotalDiscounts();
         }
 
         function syncDateUI() {
@@ -998,7 +1028,26 @@ if (isset($_GET['action'])) {
                 return;
             }
             await loadAllBranchesFromDB();
+            loadTotalDiscounts();
             startDashboardAutoRefresh();
+        }
+
+        async function loadTotalDiscounts() {
+            const amountEl = document.getElementById('stat-total-discounts');
+            const subEl    = document.getElementById('stat-discounts-sub');
+            if (!amountEl) return;
+            try {
+                const res = await fetch(`admin.php?action=total_discounts&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
+                if (!res.success) return;
+                const total = (parseFloat(res.data.total_discount) || 0) + (parseFloat(res.data.total_coupon_discount) || 0);
+                const count = parseInt(res.data.discounted_orders) || 0;
+                amountEl.textContent = '₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2 });
+                subEl.textContent = count > 0
+                    ? `Discounts & coupons applied on ${count} order${count !== 1 ? 's' : ''}`
+                    : 'Discounts & coupons applied';
+            } catch (_) {
+                amountEl.textContent = '—';
+            }
         }
 
         // ── Auto-refresh Dashboard / Sales Overview in the background ──
@@ -1014,6 +1063,7 @@ if (isset($_GET['action'])) {
             dashboardInterval = setInterval(() => {
                 if (document.visibilityState === 'visible' && selectedDate === todayStr()) {
                     loadAllBranchesFromDB();
+                    loadTotalDiscounts();
                 }
             }, 8000); // check for new transactions every 8 seconds
         }
@@ -1023,6 +1073,7 @@ if (isset($_GET['action'])) {
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && selectedDate === todayStr()) {
                 loadAllBranchesFromDB();
+                loadTotalDiscounts();
             }
         });
 
