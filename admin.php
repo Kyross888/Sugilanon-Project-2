@@ -656,6 +656,17 @@ if (isset($_GET['action'])) {
                     </div>
                 </div>
 
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mb-8 flex items-center gap-5">
+                    <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center shrink-0">
+                        <i class="fas fa-tags text-rose-500 text-xl"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Discounts</h3>
+                        <p class="text-2xl md:text-3xl font-black text-rose-500" id="stat-total-discounts">₱0.00</p>
+                        <p class="text-xs text-slate-400 mt-1" id="stat-discounts-sub">Discounts &amp; coupons applied</p>
+                    </div>
+                </div>
+
                 <!-- Bottom Panels -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col">
@@ -781,17 +792,6 @@ if (isset($_GET['action'])) {
                 </div>
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="branch-cards-grid"></div>
-
-                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mt-6 flex items-center gap-5">
-                    <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center shrink-0">
-                        <i class="fas fa-tags text-rose-500 text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Discounts</h3>
-                        <p class="text-2xl md:text-3xl font-black text-rose-500" id="stat-total-discounts">₱0.00</p>
-                        <p class="text-xs text-slate-400 mt-1" id="stat-discounts-sub">Discounts &amp; coupons applied</p>
-                    </div>
-                </div>
 
                 <!-- Transactions Table -->
                 <div class="mt-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
@@ -1225,6 +1225,7 @@ if (isset($_GET['action'])) {
         async function openHistoryModal(e) {
             e.preventDefault();
             document.getElementById('historyModal').classList.remove('hidden');
+            pushModalHistory();
             const branchId = branchIdMap[currentBranch];
             const tbody    = document.getElementById('history-modal-body');
             const cardsEl  = document.getElementById('history-modal-cards');
@@ -1303,6 +1304,7 @@ if (isset($_GET['action'])) {
         async function openStocksModal(e) {
             e.preventDefault();
             document.getElementById('stocksModal').classList.remove('hidden');
+            pushModalHistory();
             const tbody = document.getElementById('stocks-modal-body');
 
             try {
@@ -1439,10 +1441,46 @@ if (isset($_GET['action'])) {
             document.getElementById('modalStatus').innerText   = status;
             document.getElementById('modalLocation').innerText = location;
             document.getElementById('branchModal').classList.remove('hidden');
+            pushModalHistory();
         }
-        function closeModal()        { document.getElementById('branchModal').classList.add('hidden'); }
-        function closeHistoryModal() { document.getElementById('historyModal').classList.add('hidden'); }
-        function closeStocksModal()  { document.getElementById('stocksModal').classList.add('hidden'); }
+        function closeModal()        { closeModalWithHistory('branchModal'); }
+        function closeHistoryModal() { closeModalWithHistory('historyModal'); }
+        function closeStocksModal()  { closeModalWithHistory('stocksModal'); }
+
+        // ── Make the phone's back/return button close modals instead
+        //    of exiting the app ─────────────────────────────────
+        // Opening a modal normally doesn't add anything to browser
+        // history, so pressing the phone's back button has nowhere to
+        // go and the whole app closes. Fix: push a dummy history entry
+        // whenever a modal opens, and catch the back button (popstate)
+        // to close the modal instead of letting the browser navigate
+        // away / exit.
+        const MODAL_IDS = ['branchModal', 'historyModal', 'stocksModal'];
+        let modalHistoryPushed = false;
+
+        function pushModalHistory() {
+            history.pushState({ posModalOpen: true }, '');
+            modalHistoryPushed = true;
+        }
+
+        function closeModalWithHistory(modalId) {
+            document.getElementById(modalId).classList.add('hidden');
+            if (modalHistoryPushed) {
+                modalHistoryPushed = false;
+                history.back(); // consume the dummy entry so it doesn't linger
+            }
+        }
+
+        window.addEventListener('popstate', () => {
+            const openModalId = MODAL_IDS.find(id => {
+                const el = document.getElementById(id);
+                return el && !el.classList.contains('hidden');
+            });
+            if (openModalId) {
+                document.getElementById(openModalId).classList.add('hidden');
+                modalHistoryPushed = false;
+            }
+        });
 
         // ── Logout ─────────────────────────────────────────────
         async function logoutSession() {
