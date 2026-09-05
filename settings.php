@@ -449,15 +449,30 @@
                 <div class="section-title">Change Password</div>
                 <div class="form-group">
                     <label>Current Password</label>
-                    <input type="password" id="cur-password" placeholder="••••••••">
+                    <div style="position:relative;">
+                        <input type="password" id="cur-password" placeholder="••••••••" style="padding-right:44px;">
+                        <button type="button" onclick="togglePwVisibility('cur-password', this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-light);cursor:pointer;padding:6px;">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>New Password</label>
-                    <input type="password" id="new-password" placeholder="Enter new password">
+                    <div style="position:relative;">
+                        <input type="password" id="new-password" placeholder="Enter new password" style="padding-right:44px;">
+                        <button type="button" onclick="togglePwVisibility('new-password', this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-light);cursor:pointer;padding:6px;">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="form-group">
                     <label>Confirm New Password</label>
-                    <input type="password" id="confirm-password" placeholder="Repeat new password">
+                    <div style="position:relative;">
+                        <input type="password" id="confirm-password" placeholder="Repeat new password" style="padding-right:44px;">
+                        <button type="button" onclick="togglePwVisibility('confirm-password', this)" style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--text-light);cursor:pointer;padding:6px;">
+                            <i class="fa-solid fa-eye"></i>
+                        </button>
+                    </div>
                 </div>
                 <button class="btn-save" onclick="changePassword()" style="margin-bottom:20px;">Update Password</button>
                 <div id="pw-status" style="font-size:13px;margin-bottom:20px;"></div>
@@ -532,6 +547,16 @@
         }
 
         // ── Change Password ────────────────────────────────────
+        // ── Show/hide password toggle ───────────────────────────
+        function togglePwVisibility(inputId, btn) {
+            const input = document.getElementById(inputId);
+            const icon  = btn.querySelector('i');
+            const showing = input.type === 'text';
+            input.type = showing ? 'password' : 'text';
+            icon.classList.toggle('fa-eye', showing);
+            icon.classList.toggle('fa-eye-slash', !showing);
+        }
+
         async function changePassword() {
             const cur = document.getElementById('cur-password').value;
             const nw = document.getElementById('new-password').value;
@@ -544,10 +569,6 @@
             }
             if (nw !== confirm) {
                 status.innerHTML = '<span style="color:var(--danger);">New passwords do not match.</span>';
-                return;
-            }
-            if (nw.length < 6) {
-                status.innerHTML = '<span style="color:var(--danger);">Password must be at least 6 characters.</span>';
                 return;
             }
 
