@@ -407,11 +407,12 @@ if (isset($_GET['action'])) {
                         <tr>
                             <th class="px-6 py-4 font-bold">Date &amp; Time</th>
                             <th class="px-6 py-4 font-bold">Items Bought</th>
+                            <th class="px-6 py-4 font-bold">Payment</th>
                             <th class="px-6 py-4 font-bold text-right">Amount</th>
                         </tr>
                     </thead>
                     <tbody id="history-modal-body" class="text-sm divide-y divide-slate-100">
-                        <tr><td colspan="3" class="text-center py-8 text-slate-400">Loading…</td></tr>
+                        <tr><td colspan="4" class="text-center py-8 text-slate-400">Loading…</td></tr>
                     </tbody>
                 </table>
                 <!-- Mobile card list: everything (date, items, amount) stacks
@@ -1146,10 +1147,17 @@ if (isset($_GET['action'])) {
             try {
                 const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
                 if (!res.success || !res.transactions.length) {
-                    tbody.innerHTML   = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
+                    tbody.innerHTML   = `<tr><td colspan="4" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
                     if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">No transactions for this branch on the selected date.</div>`;
                     return;
                 }
+                const methodBadge = (method) => {
+                    const m = (method || '—').toUpperCase();
+                    const color = m === 'GCASH'
+                        ? 'bg-blue-50 text-blue-600'
+                        : 'bg-emerald-50 text-emerald-600';
+                    return `<span class="px-2 py-1 rounded-full text-[10px] font-bold ${color}">${m}</span>`;
+                };
                 tbody.innerHTML = res.transactions.map(t => {
                     const dt        = parseUTC(t.created_at);
                     const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
@@ -1163,6 +1171,7 @@ if (isset($_GET['action'])) {
                             <p class="font-bold text-slate-800">${t.items_summary || '—'}</p>
                             <p class="text-xs text-slate-400 mt-0.5"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
                         </td>
+                        <td class="px-6 py-4">${methodBadge(t.payment_method)}</td>
                         <td class="px-6 py-4 text-right font-black text-emerald-600 text-lg">
                             ₱ ${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                         </td>
@@ -1183,12 +1192,15 @@ if (isset($_GET['action'])) {
                                 <p class="font-black text-emerald-600 text-base shrink-0">₱${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <p class="font-bold text-slate-800 text-sm">${t.items_summary || '—'}</p>
-                            <p class="text-xs text-slate-400 mt-0.5"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
+                            <div class="flex items-center justify-between gap-2 mt-1">
+                                <p class="text-xs text-slate-400"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
+                                ${methodBadge(t.payment_method)}
+                            </div>
                         </div>`;
                     }).join('');
                 }
             } catch (_) {
-                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="4" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
                 if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-red-400 text-sm">Failed to load.</div>`;
             }
         }
