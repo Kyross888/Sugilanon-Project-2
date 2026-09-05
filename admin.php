@@ -780,7 +780,9 @@ if (isset($_GET['action'])) {
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mb-6 flex items-center gap-5">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="branch-cards-grid"></div>
+
+                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mt-6 flex items-center gap-5">
                     <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center shrink-0">
                         <i class="fas fa-tags text-rose-500 text-xl"></i>
                     </div>
@@ -790,8 +792,6 @@ if (isset($_GET['action'])) {
                         <p class="text-xs text-slate-400 mt-1" id="stat-discounts-sub">Discounts &amp; coupons applied</p>
                     </div>
                 </div>
-
-                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6" id="branch-cards-grid"></div>
 
                 <!-- Transactions Table -->
                 <div class="mt-8 bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm">
