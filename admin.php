@@ -401,7 +401,8 @@ if (isset($_GET['action'])) {
                 </button>
             </div>
             <div class="overflow-y-auto pr-2 flex-1 rounded-xl border border-slate-100">
-                <table class="w-full text-left">
+                <!-- Desktop table -->
+                <table class="w-full text-left hidden md:table">
                     <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-widest sticky top-0 border-b border-slate-100 z-10 shadow-sm">
                         <tr>
                             <th class="px-6 py-4 font-bold">Date &amp; Time</th>
@@ -413,6 +414,12 @@ if (isset($_GET['action'])) {
                         <tr><td colspan="3" class="text-center py-8 text-slate-400">Loading…</td></tr>
                     </tbody>
                 </table>
+                <!-- Mobile card list: everything (date, items, amount) stacks
+                     vertically per transaction, so only up/down scrolling is
+                     ever needed — no sideways swipe to see the amount. -->
+                <div id="history-modal-cards" class="md:hidden divide-y divide-slate-100">
+                    <div class="p-6 text-center text-slate-400 text-sm">Loading…</div>
+                </div>
             </div>
             <div class="mt-6 pt-4 border-t border-slate-100 flex justify-end shrink-0">
                 <button id="downloadBtn" onclick="exportSalesData()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-md flex items-center gap-2">
@@ -1134,11 +1141,13 @@ if (isset($_GET['action'])) {
             document.getElementById('historyModal').classList.remove('hidden');
             const branchId = branchIdMap[currentBranch];
             const tbody    = document.getElementById('history-modal-body');
+            const cardsEl  = document.getElementById('history-modal-cards');
 
             try {
                 const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
                 if (!res.success || !res.transactions.length) {
-                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
+                    tbody.innerHTML   = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
+                    if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">No transactions for this branch on the selected date.</div>`;
                     return;
                 }
                 tbody.innerHTML = res.transactions.map(t => {
@@ -1159,8 +1168,28 @@ if (isset($_GET['action'])) {
                         </td>
                     </tr>`;
                 }).join('');
+
+                // Mobile: same data, stacked vertically per transaction
+                // (date/ref/items on top, amount right below) so nothing
+                // is ever cut off the side of the screen.
+                if (cardsEl) {
+                    cardsEl.innerHTML = res.transactions.map(t => {
+                        const dt        = parseUTC(t.created_at);
+                        const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
+                        const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
+                        return `<div class="p-4">
+                            <div class="flex items-center justify-between gap-2 mb-1">
+                                <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${dateLabel} · ${time}</span>
+                                <p class="font-black text-emerald-600 text-base shrink-0">₱${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
+                            </div>
+                            <p class="font-bold text-slate-800 text-sm">${t.items_summary || '—'}</p>
+                            <p class="text-xs text-slate-400 mt-0.5"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
+                        </div>`;
+                    }).join('');
+                }
             } catch (_) {
                 tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
+                if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-red-400 text-sm">Failed to load.</div>`;
             }
         }
 
