@@ -181,9 +181,6 @@ switch ($action) {
         if (!$currentPw || !$newPw) {
             respond(['success' => false, 'error' => 'Both fields are required.'], 400);
         }
-        if (strlen($newPw) < 6) {
-            respond(['success' => false, 'error' => 'Password must be at least 6 characters.'], 400);
-        }
 
         $stmt = $pdo->prepare("SELECT password FROM users WHERE id = ?");
         $stmt->execute([$user['id']]);
