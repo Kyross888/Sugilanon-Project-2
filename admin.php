@@ -487,7 +487,8 @@ if (isset($_GET['action'])) {
                 </button>
             </div>
             <div class="overflow-y-auto pr-2 flex-1 rounded-xl border border-slate-100">
-                <table class="w-full text-left">
+                <!-- Desktop table -->
+                <table class="w-full text-left hidden md:table">
                     <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-widest sticky top-0 border-b border-slate-100 z-10 shadow-sm">
                         <tr>
                             <th class="px-6 py-4 font-bold">Item Name</th>
@@ -499,6 +500,12 @@ if (isset($_GET['action'])) {
                         <tr><td colspan="3" class="text-center py-8 text-slate-400">Loading…</td></tr>
                     </tbody>
                 </table>
+                <!-- Mobile card list: item, stock count and status all
+                     stack vertically per product, so only up/down
+                     scrolling is ever needed. -->
+                <div id="stocks-modal-cards" class="md:hidden divide-y divide-slate-100">
+                    <div class="p-6 text-center text-slate-400 text-sm">Loading…</div>
+                </div>
             </div>
         </div>
     </div>
@@ -1305,27 +1312,48 @@ if (isset($_GET['action'])) {
             e.preventDefault();
             document.getElementById('stocksModal').classList.remove('hidden');
             pushModalHistory();
-            const tbody = document.getElementById('stocks-modal-body');
+            const tbody   = document.getElementById('stocks-modal-body');
+            const cardsEl = document.getElementById('stocks-modal-cards');
 
             try {
                 const res = await api.products.list();
                 if (!res.success || !res.data.length) {
-                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No products found.</td></tr>`;
+                    tbody.innerHTML   = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No products found.</td></tr>`;
+                    if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">No products found.</div>`;
                     return;
                 }
+                const statusFor = (stock) => {
+                    if      (stock <= 0)  return { html: `<span class="bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Out of Stock</span>`, chip: 'bg-red-50 text-red-600 border-red-100' };
+                    else if (stock <= 10) return { html: `<span class="bg-amber-50 text-amber-600 border border-amber-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Low Stock</span>`, chip: 'bg-amber-50 text-amber-600 border-amber-100' };
+                    else                  return { html: `<span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-1 rounded text-[10px] font-bold uppercase">In Stock</span>`, chip: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
+                };
+
                 tbody.innerHTML = res.data.map(p => {
-                    let statusHtml;
-                    if      (p.stock <= 0)  statusHtml = `<span class="bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Out of Stock</span>`;
-                    else if (p.stock <= 10) statusHtml = `<span class="bg-amber-50 text-amber-600 border border-amber-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Low Stock</span>`;
-                    else                   statusHtml = `<span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-1 rounded text-[10px] font-bold uppercase">In Stock</span>`;
+                    const status = statusFor(p.stock);
                     return `<tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-6 py-4 font-bold text-slate-800">${p.name}</td>
                         <td class="px-6 py-4 text-slate-600 font-medium">${p.stock} units</td>
-                        <td class="px-6 py-4">${statusHtml}</td>
+                        <td class="px-6 py-4">${status.html}</td>
                     </tr>`;
                 }).join('');
+
+                // Mobile: item name + stock on top, status badge right
+                // below it — no columns squeezed side-by-side.
+                if (cardsEl) {
+                    cardsEl.innerHTML = res.data.map(p => {
+                        const status = statusFor(p.stock);
+                        return `<div class="p-4 flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="font-bold text-slate-800 text-sm truncate">${p.name}</p>
+                                <p class="text-xs text-slate-500 mt-0.5">${p.stock} units</p>
+                            </div>
+                            ${status.html}
+                        </div>`;
+                    }).join('');
+                }
             } catch (_) {
                 tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
+                if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-red-400 text-sm">Failed to load.</div>`;
             }
         }
 
