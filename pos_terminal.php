@@ -632,8 +632,8 @@
         .gcash-modal {
             background: white;
             border-radius: 24px;
-            width: 90%;
-            max-width: 400px;
+            width: 94%;
+            max-width: 680px;
             max-height: 92vh;
             overflow-y: auto;
             animation: modalPop 0.3s ease-out;
@@ -641,13 +641,13 @@
         
         .gcash-header {
             background: linear-gradient(135deg, #0070e0, #00a8ff);
-            padding: 22px 20px 18px;
+            padding: 18px 20px 14px;
             text-align: center;
             color: white;
         }
         
         .gcash-header .gcash-logo {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 900;
             letter-spacing: -1px;
             margin-bottom: 4px;
@@ -658,20 +658,45 @@
             opacity: 0.85;
         }
         
+        /* Two-column body: QR on the left, reference number + actions
+           on the right — wider/shorter instead of one long scrolling
+           column, so everything is visible at once. */
         .gcash-body {
-            padding: 22px 24px 26px;
+            display: flex;
+            gap: 22px;
+            padding: 20px 22px 22px;
+            align-items: stretch;
+            text-align: left;
+        }
+
+        .gcash-col-left {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             text-align: center;
+            border-right: 1px solid var(--border);
+            padding-right: 22px;
+        }
+
+        .gcash-col-right {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
         }
         
         .gcash-amount {
-            font-size: 36px;
+            font-size: 30px;
             font-weight: 800;
             color: #0070e0;
-            margin: 8px 0 18px;
+            margin: 4px 0 12px;
         }
         
         .gcash-amount-label {
-            font-size: 13px;
+            font-size: 12px;
             color: var(--text-light);
             font-weight: 600;
             text-transform: uppercase;
@@ -679,7 +704,7 @@
         }
         
         #qrCodeCanvas {
-            margin: 0 auto 14px;
+            margin: 0 auto 10px;
             display: flex;
             justify-content: center;
         }
@@ -692,12 +717,11 @@
         }
         
         .gcash-instructions {
-            font-size: 12px;
+            font-size: 11px;
             color: var(--text-light);
-            margin-bottom: 20px;
-            line-height: 1.6;
+            line-height: 1.5;
             background: #f0f8ff;
-            padding: 10px 14px;
+            padding: 8px 12px;
             border-radius: 10px;
             border: 1px solid #bee3f8;
         }
@@ -738,43 +762,58 @@
         }
 
         .gcash-qr-img {
-            width: 280px;
-            height: 280px;
+            width: 190px;
+            height: 190px;
             object-fit: contain;
             border-radius: 12px;
             border: 3px solid #e8f4ff;
             padding: 6px;
         }
 
-        /* On short/landscape screens (common on tablets held sideways),
-           shrink the QR and spacing so the whole modal — including the
-           Payment Received button — fits without needing to scroll. */
-        @media (max-height: 560px) {
+        /* Below ~600px wide (phones), stack the two columns instead of
+           side-by-side, since there's no room left-to-right. */
+        @media (max-width: 600px) {
+            .gcash-body {
+                flex-direction: column;
+                padding: 18px 20px 20px;
+            }
+            .gcash-col-left {
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                padding-right: 0;
+                padding-bottom: 16px;
+                margin-bottom: 16px;
+            }
+        }
+
+        /* On very short screens, shrink things further so it still
+           fits without scrolling. */
+        @media (max-height: 480px) {
             .gcash-header {
-                padding: 12px 20px 10px;
+                padding: 10px 20px 8px;
             }
             .gcash-header .gcash-logo {
-                font-size: 20px;
+                font-size: 18px;
                 margin-bottom: 2px;
             }
             .gcash-header .gcash-subtitle {
                 font-size: 11px;
             }
             .gcash-body {
-                padding: 12px 24px 16px;
+                padding: 12px 20px 14px;
+                gap: 16px;
             }
             .gcash-amount {
-                font-size: 26px;
-                margin: 4px 0 10px;
+                font-size: 22px;
+                margin: 2px 0 8px;
             }
             .gcash-qr-img {
-                width: 150px;
-                height: 150px;
+                width: 120px;
+                height: 120px;
             }
             .gcash-instructions {
-                margin-bottom: 12px;
-                padding: 8px 12px;
-                font-size: 11px;
+                padding: 6px 10px;
+                font-size: 10px;
             }
             .gcash-confirm-btn {
                 padding: 11px;
@@ -1015,27 +1054,31 @@
                 <div class="gcash-subtitle">Scan to Pay — Luna's Ilonggo Legacy</div>
             </div>
             <div class="gcash-body">
-                <div class="gcash-amount-label">Amount to Pay</div>
-                <div class="gcash-amount" id="gcashAmount">₱0.00</div>
-                <div id="qrCodeCanvas">
-                    <img src="Qr.png" alt="GCash QR" class="gcash-qr-img"></div>
-                <div class="gcash-instructions">
-                    📱 Open your <strong>GCash app</strong> → tap <strong>Pay QR</strong> → scan the code above.<br> Ask customer to show payment confirmation before proceeding.
-                </div>
-                <div class="gcash-refno-field" style="margin:14px 0;text-align:left;">
-                    <label for="gcashRefInput" style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">
-                        GCash Reference No. <span style="font-weight:400;color:#9ca3af;">(from customer's receipt)</span>
-                    </label>
-                    <input type="text" id="gcashRefInput" placeholder="e.g. 0044 655 680574"
-                        style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;">
-                    <div id="gcashRefError" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;">
-                        Please enter the GCash reference number shown on the customer's app.
+                <div class="gcash-col-left">
+                    <div class="gcash-amount-label">Amount to Pay</div>
+                    <div class="gcash-amount" id="gcashAmount">₱0.00</div>
+                    <div id="qrCodeCanvas">
+                        <img src="Qr.png" alt="GCash QR" class="gcash-qr-img"></div>
+                    <div class="gcash-instructions">
+                        📱 Open <strong>GCash</strong> → tap <strong>Pay QR</strong> → scan the code above.
                     </div>
                 </div>
-                <button class="gcash-confirm-btn" onclick="confirmGCashPayment()">
-                    <i class="fa-solid fa-circle-check" style="margin-right:8px;"></i>Payment Received
-                </button>
-                <button class="gcash-back-btn" onclick="backToPayMethods()">← Change Payment Method</button>
+                <div class="gcash-col-right">
+                    <div class="gcash-refno-field" style="margin-bottom:14px;">
+                        <label for="gcashRefInput" style="display:block;font-size:13px;font-weight:700;color:#374151;margin-bottom:6px;">
+                            GCash Reference No. <span style="font-weight:400;color:#9ca3af;">(from customer's receipt)</span>
+                        </label>
+                        <input type="text" id="gcashRefInput" placeholder="e.g. 0044 655 680574"
+                            style="width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:14px;">
+                        <div id="gcashRefError" style="display:none;color:#dc2626;font-size:12px;margin-top:4px;">
+                            Please enter the GCash reference number shown on the customer's app.
+                        </div>
+                    </div>
+                    <button class="gcash-confirm-btn" onclick="confirmGCashPayment()">
+                        <i class="fa-solid fa-circle-check" style="margin-right:8px;"></i>Payment Received
+                    </button>
+                    <button class="gcash-back-btn" onclick="backToPayMethods()">← Change Payment Method</button>
+                </div>
             </div>
         </div>
     </div>
