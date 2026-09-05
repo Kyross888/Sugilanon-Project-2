@@ -633,7 +633,7 @@
             background: white;
             border-radius: 24px;
             width: 94%;
-            max-width: 680px;
+            max-width: 720px;
             max-height: 92vh;
             overflow-y: auto;
             animation: modalPop 0.3s ease-out;
@@ -762,8 +762,8 @@
         }
 
         .gcash-qr-img {
-            width: 190px;
-            height: 190px;
+            width: 230px;
+            height: 230px;
             object-fit: contain;
             border-radius: 12px;
             border: 3px solid #e8f4ff;
