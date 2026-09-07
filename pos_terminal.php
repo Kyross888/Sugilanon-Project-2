@@ -1042,7 +1042,7 @@
                     <span class="pay-sublabel">Scan QR to pay</span>
                 </button>
             </div>
-            <button class="pay-cancel-btn" onclick="closePayOverlay()">Cancel</button>
+            <button class="pay-cancel-btn" onclick="cancelCheckout()">Cancel</button>
         </div>
     </div>
 
@@ -1606,27 +1606,54 @@
         }
 
         // ── Mobile drawer controls ──────────────────────────────
+        // ── Back button support for the mobile sidebar/cart drawers ──
+        let drawerHistoryPushed = false;
+
         function toggleMobileSidebar() {
-            document.getElementById('sidebar').classList.toggle('mobile-open');
+            const sidebar = document.getElementById('sidebar');
+            const opening = !sidebar.classList.contains('mobile-open');
+            sidebar.classList.toggle('mobile-open');
             document.getElementById('cartPanel').classList.remove('mobile-open');
-            document.getElementById('mobileOverlay').classList.toggle(
-                'show', document.getElementById('sidebar').classList.contains('mobile-open')
-            );
+            document.getElementById('mobileOverlay').classList.toggle('show', opening);
+            if (opening) {
+                if (!drawerHistoryPushed) { history.pushState({ posDrawerOpen: true }, ''); drawerHistoryPushed = true; }
+            } else if (drawerHistoryPushed) {
+                drawerHistoryPushed = false;
+                history.back();
+            }
         }
 
         function toggleMobileCart() {
-            document.getElementById('cartPanel').classList.toggle('mobile-open');
+            const cartPanel = document.getElementById('cartPanel');
+            const opening = !cartPanel.classList.contains('mobile-open');
+            cartPanel.classList.toggle('mobile-open');
             document.getElementById('sidebar').classList.remove('mobile-open');
-            document.getElementById('mobileOverlay').classList.toggle(
-                'show', document.getElementById('cartPanel').classList.contains('mobile-open')
-            );
+            document.getElementById('mobileOverlay').classList.toggle('show', opening);
+            if (opening) {
+                if (!drawerHistoryPushed) { history.pushState({ posDrawerOpen: true }, ''); drawerHistoryPushed = true; }
+            } else if (drawerHistoryPushed) {
+                drawerHistoryPushed = false;
+                history.back();
+            }
         }
 
         function closeMobilePanels() {
             document.getElementById('sidebar').classList.remove('mobile-open');
             document.getElementById('cartPanel').classList.remove('mobile-open');
             document.getElementById('mobileOverlay').classList.remove('show');
+            if (drawerHistoryPushed) {
+                drawerHistoryPushed = false;
+                history.back();
+            }
         }
+
+        window.addEventListener('popstate', () => {
+            if (!drawerHistoryPushed) return;
+            drawerHistoryPushed = false;
+            document.getElementById('sidebar').classList.remove('mobile-open');
+            document.getElementById('cartPanel').classList.remove('mobile-open');
+            document.getElementById('mobileOverlay').classList.remove('show');
+        });
 
         // Keeps the floating "View Cart" button's item count/total in sync
         function updateMobileCartFab() {
@@ -1812,6 +1839,48 @@ function addToCart(productId, name, price) {
             // Show payment method selection instead of going straight to success
             document.getElementById('payModalTotal').innerText = total;
             document.getElementById('payOverlay').style.display = 'flex';
+            pushCheckoutHistory();
+        }
+
+        // ── Back button support for the checkout flow ───────────
+        // The checkout flow (pay method → GCash QR → success screen) is
+        // several overlays deep but should feel like ONE step to the
+        // phone's back button — pressing back at any point should cancel
+        // back to the cart, not exit the whole app. We push a single
+        // history entry when the flow starts, and consume it only when
+        // the flow truly ends (cancelled or completed) — not on the
+        // internal transitions between its steps.
+        let checkoutHistoryPushed = false;
+
+        function pushCheckoutHistory() {
+            if (checkoutHistoryPushed) return;
+            history.pushState({ posCheckoutOpen: true }, '');
+            checkoutHistoryPushed = true;
+        }
+
+        function endCheckoutHistory() {
+            if (checkoutHistoryPushed) {
+                checkoutHistoryPushed = false;
+                history.back(); // consume the pushed entry
+            }
+        }
+
+        window.addEventListener('popstate', () => {
+            if (!checkoutHistoryPushed) return;
+            checkoutHistoryPushed = false;
+            document.getElementById('payOverlay').style.display   = 'none';
+            document.getElementById('gcashOverlay').style.display = 'none';
+            // Only cancel the order overlay via back button if the order
+            // hasn't actually been placed yet — once it succeeds, backing
+            // out shouldn't silently discard a completed sale's summary.
+            if (!orderAlreadyPlaced) {
+                document.getElementById('orderOverlay').style.display = 'none';
+            }
+        });
+
+        function cancelCheckout() {
+            document.getElementById('payOverlay').style.display = 'none';
+            endCheckoutHistory();
         }
 
         function closePayOverlay() {
@@ -1957,6 +2026,7 @@ function addToCart(productId, name, price) {
                 document.getElementById('couponCode').value = '';
                 document.getElementById('applyDiscount').checked = false;
                 document.getElementById('orderOverlay').style.display = 'none';
+                endCheckoutHistory();
                 renderCart();
                 closeMobilePanels();
                 if (usingDB) loadProducts();
@@ -2016,6 +2086,7 @@ function addToCart(productId, name, price) {
             document.getElementById('couponCode').value = '';
             document.getElementById('applyDiscount').checked = false;
             document.getElementById('orderOverlay').style.display = 'none';
+            endCheckoutHistory();
             if (btn) { btn.disabled = false; btn.textContent = 'Start New Transaction'; }
             isProcessingOrder = false;
             renderCart();
