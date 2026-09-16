@@ -92,21 +92,27 @@ if (session_status() === PHP_SESSION_NONE) {
     session_set_cookie_params([
         'lifetime' => $sessionLifetime,
         'path'     => '/',
-        'secure'   => isset($_SERVER['HTTPS']),
+        'secure'   => true,
         'httponly' => true,
         'samesite' => 'Lax',
     ]);
     session_start();
 }
 
-// ── Remember-Me auto-login ─────────────────────────────────────
+// ── Remember-Me auto-login + rolling refresh ───────────────────
 // The 24-hour session above still expires (e.g. after not opening the
 // app for a day). If that happens but a valid "remember me" cookie is
 // present, silently log the user back in using the token stored in the
 // database — no need to re-enter email/password. Works the same for
 // both admin and staff accounts, since it's keyed off the logged-in
 // user's row, not their role.
-if (empty($_SESSION['user']) && !empty($_COOKIE['remember_me'])) {
+//
+// This also keeps the 90-day window rolling forward with regular use:
+// any time the cookie is seen (whether the session needed restoring or
+// was already active), if it's more than 15 days old we issue a fresh
+// 90-day token. That way daily/weekly/monthly use never actually runs out —
+// only ~30 days of total inactivity does.
+if (!empty($_COOKIE['remember_me'])) {
     $parts = explode(':', $_COOKIE['remember_me'], 2);
     if (count($parts) === 2) {
         [$selector, $validator] = $parts;
@@ -119,33 +125,40 @@ if (empty($_SESSION['user']) && !empty($_COOKIE['remember_me'])) {
         $u = $stmt->fetch();
 
         if ($u && hash_equals($u['remember_validator_hash'], hash('sha256', $validator))) {
-            // Valid token — restore the session
-            $_SESSION['user'] = [
-                'id'        => $u['id'],
-                'name'      => $u['first_name'] . ' ' . $u['last_name'],
-                'email'     => $u['email'],
-                'role'      => $u['role'],
-                'branch_id' => $u['branch_id'],
-            ];
+            // Restore the session if it had expired
+            if (empty($_SESSION['user'])) {
+                $_SESSION['user'] = [
+                    'id'        => $u['id'],
+                    'name'      => $u['first_name'] . ' ' . $u['last_name'],
+                    'email'     => $u['email'],
+                    'role'      => $u['role'],
+                    'branch_id' => $u['branch_id'],
+                ];
+            }
 
-            // Rotate the token for security (issue a new one, invalidate the old)
-            $newSelector  = bin2hex(random_bytes(16));
-            $newValidator = bin2hex(random_bytes(32));
-            $expires      = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 30); // 30 days
+            // Roll the 90-day window forward if it's more than 15 days
+            // old, so regular use (daily, weekly, or monthly) never
+            // actually expires — only ~90 days of total inactivity does.
+            $secondsLeft = strtotime($u['remember_expires']) - time();
+            if ($secondsLeft < 60 * 60 * 24 * 75) {
+                $newSelector  = bin2hex(random_bytes(16));
+                $newValidator = bin2hex(random_bytes(32));
+                $expires      = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 90); // 90 days
 
-            $pdo->prepare(
-                "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
-            )->execute([$newSelector, hash('sha256', $newValidator), $expires, $u['id']]);
+                $pdo->prepare(
+                    "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
+                )->execute([$newSelector, hash('sha256', $newValidator), $expires, $u['id']]);
 
-            setcookie('remember_me', $newSelector . ':' . $newValidator, [
-                'expires'  => time() + 60 * 60 * 24 * 30,
-                'path'     => '/',
-                'secure'   => isset($_SERVER['HTTPS']),
-                'httponly' => true,
-                'samesite' => 'Lax',
-            ]);
-        } else {
-            // Invalid/expired token — clear the bad cookie
+                setcookie('remember_me', $newSelector . ':' . $newValidator, [
+                    'expires'  => time() + 60 * 60 * 24 * 90,
+                    'path'     => '/',
+                    'secure'   => true,
+                    'httponly' => true,
+                    'samesite' => 'Lax',
+                ]);
+            }
+        } elseif (empty($_SESSION['user'])) {
+            // Invalid/expired token and no active session — clear the bad cookie
             setcookie('remember_me', '', ['expires' => time() - 3600, 'path' => '/']);
         }
     }
