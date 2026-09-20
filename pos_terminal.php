@@ -1557,11 +1557,6 @@
                 window.location.href = 'login.php';
                 return;
             }
-            // The POS terminal is staff-only — send admins to their own dashboard.
-            if (user.user.role === 'admin') {
-                window.location.href = 'admin.php';
-                return;
-            }
             await loadProducts();
         }
 
