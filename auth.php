@@ -53,14 +53,14 @@ switch ($action) {
         // ── Set a persistent Remember-Me cookie (survives redeploys) ──
         $selector  = bin2hex(random_bytes(16));
         $validator = bin2hex(random_bytes(32));
-        $expires   = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 30); // 30 days
+        $expires   = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 365 * 10); // 10 years
 
         $pdo->prepare(
             "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
         )->execute([$selector, hash('sha256', $validator), $expires, $user['id']]);
 
         setcookie('remember_me', $selector . ':' . $validator, [
-            'expires'  => time() + 60 * 60 * 24 * 30,
+            'expires'  => time() + 60 * 60 * 24 * 365 * 10,
             'path'     => '/',
             'secure'   => true,
             'httponly' => true,
