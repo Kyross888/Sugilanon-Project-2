@@ -107,11 +107,13 @@ if (session_status() === PHP_SESSION_NONE) {
 // both admin and staff accounts, since it's keyed off the logged-in
 // user's row, not their role.
 //
-// This also keeps the 90-day window rolling forward with regular use:
+// This also keeps the login window rolling forward with regular use:
 // any time the cookie is seen (whether the session needed restoring or
-// was already active), if it's more than 15 days old we issue a fresh
-// 90-day token. That way daily/weekly/monthly use never actually runs out —
-// only ~30 days of total inactivity does.
+// was already active), if it's more than 90 days old we issue a fresh
+// 10-year token. That way regular use (daily, weekly, monthly, even
+// occasional) never actually runs out — this is effectively permanent
+// and only ends if the account is unused for years, cookies are
+// cleared, or the person logs out.
 if (!empty($_COOKIE['remember_me'])) {
     $parts = explode(':', $_COOKIE['remember_me'], 2);
     if (count($parts) === 2) {
@@ -136,21 +138,20 @@ if (!empty($_COOKIE['remember_me'])) {
                 ];
             }
 
-            // Roll the 90-day window forward if it's more than 15 days
-            // old, so regular use (daily, weekly, or monthly) never
-            // actually expires — only ~90 days of total inactivity does.
+            // Roll the window forward if it's more than 90 days old, so
+            // regular use never actually expires — effectively permanent.
             $secondsLeft = strtotime($u['remember_expires']) - time();
-            if ($secondsLeft < 60 * 60 * 24 * 75) {
+            if ($secondsLeft < 60 * 60 * 24 * (365 * 10 - 90)) {
                 $newSelector  = bin2hex(random_bytes(16));
                 $newValidator = bin2hex(random_bytes(32));
-                $expires      = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 90); // 90 days
+                $expires      = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 365 * 10); // 10 years
 
                 $pdo->prepare(
                     "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
                 )->execute([$newSelector, hash('sha256', $newValidator), $expires, $u['id']]);
 
                 setcookie('remember_me', $newSelector . ':' . $newValidator, [
-                    'expires'  => time() + 60 * 60 * 24 * 90,
+                    'expires'  => time() + 60 * 60 * 24 * 365 * 10,
                     'path'     => '/',
                     'secure'   => true,
                     'httponly' => true,
