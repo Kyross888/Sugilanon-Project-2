@@ -948,16 +948,6 @@ if (isset($_GET['action'])) {
         let currentBranch = 'gen_luna';
         let allBranchData = {};
 
-        // Real branch IDs as they actually exist in the database, keyed by
-        // the same short names used above. Populated from the DB the moment
-        // loadAllBranchesFromDB() runs — until then, resolveBranchId() falls
-        // back to the hardcoded branchIdMap guess.
-        let liveBranchIdMap = {};
-
-        function resolveBranchId(key) {
-            return (liveBranchIdMap[key] !== undefined) ? liveBranchIdMap[key] : branchIdMap[key];
-        }
-
         // ── Date helpers ───────────────────────────────────────
         function todayStr() {
             // Use Philippine time (UTC+8), not browser/UTC time
@@ -1092,16 +1082,8 @@ if (isset($_GET['action'])) {
                 let totalRevenue = 0, totalOrders = 0, topBranch = null, topRevenue = 0;
 
                 res.data.forEach(row => {
-                    // Match by name, not by assuming the DB's real id equals
-                    // our hardcoded guess — this is what makes branch
-                    // filtering correct even if the live database's branch
-                    // ids don't match the hardcoded map above.
-                    const key = Object.keys(branchInfo).find(
-                        k => branchInfo[k].name.trim().toLowerCase() === String(row.name || '').trim().toLowerCase()
-                    );
+                    const key = Object.keys(branchIdMap).find(k => branchIdMap[k] === row.id);
                     if (!key) return;
-                    liveBranchIdMap[key] = row.id;
-
                     const rev      = parseFloat(row.sales_today || 0);
                     const ord      = parseInt(row.orders_today || 0);
                     const prevRev  = parseFloat(row.sales_yesterday || 0);
@@ -1173,7 +1155,7 @@ if (isset($_GET['action'])) {
 
         // ── Load transactions for a branch ────────────────────
         async function loadBranchTransactions(branchKey) {
-            const branchId = resolveBranchId(branchKey);
+            const branchId = branchIdMap[branchKey];
             const tbody = document.getElementById('live-sales-table');
             if (!tbody) return;
 
@@ -1240,7 +1222,7 @@ if (isset($_GET['action'])) {
             e.preventDefault();
             document.getElementById('historyModal').classList.remove('hidden');
             pushModalHistory();
-            const branchId = resolveBranchId(currentBranch);
+            const branchId = branchIdMap[currentBranch];
             const tbody    = document.getElementById('history-modal-body');
             const cardsEl  = document.getElementById('history-modal-cards');
 
@@ -1531,7 +1513,7 @@ if (isset($_GET['action'])) {
 
         // ── Export CSV ─────────────────────────────────────────
         async function exportSalesData() {
-            const branchId = resolveBranchId(currentBranch);
+            const branchId = branchIdMap[currentBranch];
             const b        = allBranchData[currentBranch] || branchInfo[currentBranch];
             const btn      = document.getElementById('downloadBtn');
 
@@ -1585,7 +1567,7 @@ if (isset($_GET['action'])) {
         let lastTxnId    = null;
 
         async function loadLiveFeed() {
-            const branchId = resolveBranchId(currentBranch);
+            const branchId = branchIdMap[currentBranch];
             const today    = todayStr();
 
             try {
