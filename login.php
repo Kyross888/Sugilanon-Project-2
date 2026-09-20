@@ -2,10 +2,36 @@
 // If already logged in (active session, or auto-restored via the
 // Remember Me cookie inside db.php), skip the login form entirely
 // and go straight to the right dashboard — just like Facebook does.
+//
+// ── FIX: account-switch trap ──────────────────────────────────
+// Because the Remember Me cookie keeps a session alive for years, this
+// auto-redirect used to fire silently even when someone deliberately came
+// back to this page to sign in as a DIFFERENT account (e.g. an admin
+// testing the Staff login). They'd get bounced straight back into their
+// old session before the form even rendered, with no indication anything
+// was wrong — then every order/setting they touched was recorded under
+// the old account instead of the one they thought they'd switched to.
+//
+// /login.php?switch=1 now explicitly logs the current session out first,
+// so a fresh sign-in always works. Otherwise, if a session is active we
+// show a clear "you're already signed in as ___" screen instead of a
+// silent redirect, so nobody is left guessing which account is active.
 require_once 'db.php';
-if (!empty($_SESSION['user'])) {
-    header('Location: ' . ($_SESSION['user']['role'] === 'admin' ? 'admin.php' : 'dashboard.php'));
-    exit;
+
+$activeUser = null;
+
+if (!empty($_GET['switch'])) {
+    if (!empty($_SESSION['user']['id'])) {
+        $pdo->prepare(
+            "UPDATE users SET remember_selector = NULL, remember_validator_hash = NULL, remember_expires = NULL WHERE id = ?"
+        )->execute([$_SESSION['user']['id']]);
+    }
+    setcookie('remember_me', '', ['expires' => time() - 3600, 'path' => '/']);
+    $_SESSION = [];
+    session_destroy();
+    session_start();
+} elseif (!empty($_SESSION['user'])) {
+    $activeUser = $_SESSION['user'];
 }
 ?>
 <!DOCTYPE html>
@@ -36,6 +62,33 @@ if (!empty($_SESSION['user'])) {
     <span style="color:#64748b;font-weight:500;">Signing you in…</span>
 </div>
 
+<?php if ($activeUser): ?>
+<div class="login-card">
+    <div class="brand-icon"><img src="lunas.jpg" alt="Luna's Logo"></div>
+    <h2>You're already signed in</h2>
+    <p>
+        Signed in as <strong><?= htmlspecialchars($activeUser['name']) ?></strong>
+        (<?= htmlspecialchars($activeUser['role'] === 'admin' ? 'Administrator' : 'Staff / Cashier') ?>).
+    </p>
+
+    <a class="login-btn" style="display:block;text-align:center;text-decoration:none;box-sizing:border-box;margin-bottom:12px;"
+       href="<?= $activeUser['role'] === 'admin' ? 'admin.php' : 'dashboard.php' ?>">
+        Continue as <?= htmlspecialchars($activeUser['name']) ?>
+    </a>
+
+    <a class="google-btn" style="display:flex;text-decoration:none;box-sizing:border-box;"
+       href="login.php?switch=1">
+        Not you? Log out &amp; switch account
+    </a>
+
+    <div class="footer-link">
+        Use "Log out &amp; switch account" any time you need to sign a different
+        person (e.g. a staff cashier) into this device — closing the tab or
+        picking a different tab on this page is not enough, the session stays
+        active until you log out.
+    </div>
+</div>
+<?php else: ?>
 <div class="login-card">
     <div class="brand-icon"><img src="lunas.jpg" alt="Luna's Logo"></div>
     <h2>Welcome Back</h2>
@@ -90,6 +143,7 @@ if (!empty($_SESSION['user'])) {
 
     <div class="pwa-shortcut-note" id="pwaShortcutNote" style="display:none;"></div>
 </div>
+<?php endif; ?>
 
 <script src="js/api.js"></script>
 <script>
@@ -168,38 +222,45 @@ if (!empty($_SESSION['user'])) {
         }
     }
 
-    document.getElementById('loginForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const btn      = this.querySelector('.login-btn');
-        const email    = this.querySelector('input[type="text"]').value.trim();
-        const password = this.querySelector('input[type="password"]').value;
+    // These elements only exist on the normal sign-in form, not on the
+    // "you're already signed in" screen — guard so that screen doesn't
+    // throw a JS error and break the page.
+    const loginFormEl = document.getElementById('loginForm');
+    if (loginFormEl) {
+        loginFormEl.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            const btn      = this.querySelector('.login-btn');
+            const email    = this.querySelector('input[type="text"]').value.trim();
+            const password = this.querySelector('input[type="password"]').value;
 
-        if (!email || !password) { alert('Please enter your email and password.'); return; }
+            if (!email || !password) { alert('Please enter your email and password.'); return; }
 
-        btn.textContent = 'Signing in…';
-        btn.disabled = true;
+            btn.textContent = 'Signing in…';
+            btn.disabled = true;
 
-        try {
-            const res = await api.auth.login(email, password, currentRole);
-            if (res.success) {
-                window.location.href = res.user.role === 'admin' ? 'admin.php' : 'dashboard.php';
-            } else {
-                alert(res.error || 'Invalid credentials. Check your email, password, and selected role.');
+            try {
+                const res = await api.auth.login(email, password, currentRole);
+                if (res.success) {
+                    window.location.href = res.user.role === 'admin' ? 'admin.php' : 'dashboard.php';
+                } else {
+                    alert(res.error || 'Invalid credentials. Check your email, password, and selected role.');
+                    btn.textContent = 'Sign In';
+                    btn.disabled = false;
+                }
+            } catch (err) {
+                alert('Connection error: ' + (err.message || 'Could not reach the server.'));
                 btn.textContent = 'Sign In';
                 btn.disabled = false;
             }
-        } catch (err) {
-            alert('Connection error: ' + (err.message || 'Could not reach the server.'));
-            btn.textContent = 'Sign In';
-            btn.disabled = false;
-        }
-    });
+        });
+    }
 
     // ── Install App (PWA) — login page only ──────────────────────────────
     (function () {
         const row      = document.getElementById('pwaShortcutRow');
         const btn      = document.getElementById('pwaShortcutLink');
         const hint     = document.getElementById('pwaShortcutNote');
+        if (!row || !btn || !hint) return; // not on the sign-in form (already-logged-in screen)
         let deferredPrompt = null;
 
         // Already running as an installed app? Nothing to do.
