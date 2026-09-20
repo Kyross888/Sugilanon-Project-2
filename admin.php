@@ -50,13 +50,13 @@ if (isset($_GET['action'])) {
             $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE (branch_id = ? OR branch_id IS NULL) AND DATE(created_at) = ?::date AND status = 'completed'");
             $kpi->execute([$branchId, $date]);
             $kpiRow = $kpi->fetch();
-            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.discount, t.coupon_discount, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE (t.branch_id = ? OR t.branch_id IS NULL) AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE (t.branch_id = ? OR t.branch_id IS NULL) AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
             $txns->execute([$branchId, $date]);
         } else {
             $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE DATE(created_at) = ?::date AND status = 'completed'");
             $kpi->execute([$date]);
             $kpiRow = $kpi->fetch();
-            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.discount, t.coupon_discount, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
             $txns->execute([$date]);
         }
         respond(['success' => true, 'kpi' => $kpiRow, 'transactions' => $txns->fetchAll()]);
@@ -65,34 +65,6 @@ if (isset($_GET['action'])) {
     if ($action === 'totals') {
         $stmt = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS total_revenue, COUNT(*) AS total_orders FROM transactions WHERE DATE(created_at) = ?::date AND status = 'completed'");
         $stmt->execute([$date]);
-        respond(['success' => true, 'data' => $stmt->fetch()]);
-    }
-
-    if ($action === 'total_discounts') {
-        // Optional ?date=YYYY-MM-DD scopes to that day (used by Sales
-        // Overview's Today/Yesterday/custom date filter). No date = all-time.
-        $date = $_GET['date'] ?? null;
-        if ($date) {
-            $stmt = $pdo->prepare("
-                SELECT
-                    COALESCE(SUM(discount), 0)        AS total_discount,
-                    COALESCE(SUM(coupon_discount), 0) AS total_coupon_discount,
-                    COUNT(*) FILTER (WHERE discount > 0 OR coupon_discount > 0) AS discounted_orders
-                FROM transactions
-                WHERE status = 'completed' AND DATE(created_at) = ?::date
-            ");
-            $stmt->execute([$date]);
-        } else {
-            $stmt = $pdo->prepare("
-                SELECT
-                    COALESCE(SUM(discount), 0)        AS total_discount,
-                    COALESCE(SUM(coupon_discount), 0) AS total_coupon_discount,
-                    COUNT(*) FILTER (WHERE discount > 0 OR coupon_discount > 0) AS discounted_orders
-                FROM transactions
-                WHERE status = 'completed'
-            ");
-            $stmt->execute();
-        }
         respond(['success' => true, 'data' => $stmt->fetch()]);
     }
 
@@ -429,27 +401,18 @@ if (isset($_GET['action'])) {
                 </button>
             </div>
             <div class="overflow-y-auto pr-2 flex-1 rounded-xl border border-slate-100">
-                <!-- Desktop table -->
-                <table class="w-full text-left hidden md:table">
+                <table class="w-full text-left">
                     <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-widest sticky top-0 border-b border-slate-100 z-10 shadow-sm">
                         <tr>
                             <th class="px-6 py-4 font-bold">Date &amp; Time</th>
                             <th class="px-6 py-4 font-bold">Items Bought</th>
-                            <th class="px-6 py-4 font-bold">Payment</th>
-                            <th class="px-6 py-4 font-bold">Discount</th>
                             <th class="px-6 py-4 font-bold text-right">Amount</th>
                         </tr>
                     </thead>
                     <tbody id="history-modal-body" class="text-sm divide-y divide-slate-100">
-                        <tr><td colspan="5" class="text-center py-8 text-slate-400">Loading…</td></tr>
+                        <tr><td colspan="3" class="text-center py-8 text-slate-400">Loading…</td></tr>
                     </tbody>
                 </table>
-                <!-- Mobile card list: everything (date, items, amount) stacks
-                     vertically per transaction, so only up/down scrolling is
-                     ever needed — no sideways swipe to see the amount. -->
-                <div id="history-modal-cards" class="md:hidden divide-y divide-slate-100">
-                    <div class="p-6 text-center text-slate-400 text-sm">Loading…</div>
-                </div>
             </div>
             <div class="mt-6 pt-4 border-t border-slate-100 flex justify-end shrink-0">
                 <button id="downloadBtn" onclick="exportSalesData()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl text-sm font-bold transition-all shadow-md flex items-center gap-2">
@@ -472,8 +435,7 @@ if (isset($_GET['action'])) {
                 </button>
             </div>
             <div class="overflow-y-auto pr-2 flex-1 rounded-xl border border-slate-100">
-                <!-- Desktop table -->
-                <table class="w-full text-left hidden md:table">
+                <table class="w-full text-left">
                     <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase tracking-widest sticky top-0 border-b border-slate-100 z-10 shadow-sm">
                         <tr>
                             <th class="px-6 py-4 font-bold">Item Name</th>
@@ -485,12 +447,6 @@ if (isset($_GET['action'])) {
                         <tr><td colspan="3" class="text-center py-8 text-slate-400">Loading…</td></tr>
                     </tbody>
                 </table>
-                <!-- Mobile card list: item, stock count and status all
-                     stack vertically per product, so only up/down
-                     scrolling is ever needed. -->
-                <div id="stocks-modal-cards" class="md:hidden divide-y divide-slate-100">
-                    <div class="p-6 text-center text-slate-400 text-sm">Loading…</div>
-                </div>
             </div>
         </div>
     </div>
@@ -577,7 +533,6 @@ if (isset($_GET['action'])) {
                             <div class="flex flex-col min-w-0">
                                 <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Branch</span>
                                 <select id="branchSelect" onchange="switchBranch()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
-                                    <option value="all">All Branches</option>
                                     <option value="festive">Festive Mall</option>
                                     <option value="sm_central">SM Central Market</option>
                                     <option value="gen_luna" selected>General Luna</option>
@@ -649,17 +604,6 @@ if (isset($_GET['action'])) {
                     </div>
                 </div>
 
-                <div class="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm transition-colors duration-300 mb-8 flex items-center gap-5">
-                    <div class="w-14 h-14 rounded-2xl bg-rose-50 dark:bg-rose-500/10 flex items-center justify-center shrink-0">
-                        <i class="fas fa-tags text-rose-500 text-xl"></i>
-                    </div>
-                    <div>
-                        <h3 class="text-slate-400 font-bold text-[10px] uppercase tracking-widest mb-1">Total Discounts</h3>
-                        <p class="text-2xl md:text-3xl font-black text-rose-500" id="stat-total-discounts">₱0.00</p>
-                        <p class="text-xs text-slate-400 mt-1" id="stat-discounts-sub">Discounts &amp; coupons applied</p>
-                    </div>
-                </div>
-
                 <!-- Bottom Panels -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <div class="bg-white dark:bg-slate-800 rounded-[2rem] border border-slate-200 dark:border-slate-700 overflow-hidden shadow-sm flex flex-col">
@@ -714,8 +658,7 @@ if (isset($_GET['action'])) {
                     <div class="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50">
                         <h3 class="font-black text-slate-800 dark:text-white uppercase tracking-tight text-sm"><i class="fas fa-fire text-rose-500 mr-1"></i> Top Moving Items</h3>
                     </div>
-                    <!-- Desktop table -->
-                    <div class="hidden md:block overflow-x-auto">
+                    <div class="overflow-x-auto">
                         <table class="w-full text-left">
                             <thead class="bg-slate-50 dark:bg-slate-800/80 text-slate-400 text-[10px] uppercase tracking-widest border-b border-slate-100 dark:border-slate-700">
                                 <tr>
@@ -729,12 +672,6 @@ if (isset($_GET['action'])) {
                                 <tr><td colspan="4" class="px-8 py-8 text-center text-slate-400">Loading…</td></tr>
                             </tbody>
                         </table>
-                    </div>
-                    <!-- Mobile card list: product, status and the performance
-                         bar all stack vertically, so nothing needs a sideways
-                         swipe to be seen. -->
-                    <div id="top-moving-cards" class="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
-                        <div class="px-6 py-8 text-center text-slate-400 text-sm">Loading…</div>
                     </div>
                 </div>
             </main>
@@ -768,7 +705,6 @@ if (isset($_GET['action'])) {
                         <div class="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm">
                             <i class="fas fa-store text-indigo-500 text-sm"></i>
                             <select id="branchSelectSales" onchange="switchBranchFromSales()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
-                                <option value="all">All Branches</option>
                                 <option value="festive">Festive Mall</option>
                                 <option value="sm_central">SM Central Market</option>
                                 <option value="gen_luna" selected>General Luna</option>
@@ -928,13 +864,11 @@ if (isset($_GET['action'])) {
         }
         // ── Branch Maps ────────────────────────────────────────
         const branchIdMap = {
-            all: 0,
             festive: 1, sm_central: 2, gen_luna: 3, jaro: 4,
             molo: 5, la_paz: 6, calumpang: 7, tagbak: 8,
         };
 
         const branchInfo = {
-            all:        { name: 'All Branches',       location: 'All branches combined',                   status: 'Active' },
             festive:    { name: 'Festive Mall',       location: 'Festive Walk Mall, Iloilo City',          status: 'Active' },
             sm_central: { name: 'SM Central Market',  location: 'SM City Iloilo, Central Market Area',     status: 'Active' },
             gen_luna:   { name: 'General Luna',       location: 'General Luna St., Iloilo City',           status: 'Active' },
@@ -977,7 +911,6 @@ if (isset($_GET['action'])) {
             }
             syncDateUI();
             loadAllBranchesFromDB();
-            loadTotalDiscounts();
         }
 
         function setSalesDate() {
@@ -988,7 +921,6 @@ if (isset($_GET['action'])) {
             }
             syncDateUI();
             loadAllBranchesFromDB();
-            loadTotalDiscounts();
         }
 
         function syncDateUI() {
@@ -1024,26 +956,7 @@ if (isset($_GET['action'])) {
                 return;
             }
             await loadAllBranchesFromDB();
-            loadTotalDiscounts();
             startDashboardAutoRefresh();
-        }
-
-        async function loadTotalDiscounts() {
-            const amountEl = document.getElementById('stat-total-discounts');
-            const subEl    = document.getElementById('stat-discounts-sub');
-            if (!amountEl) return;
-            try {
-                const res = await fetch(`admin.php?action=total_discounts&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
-                if (!res.success) return;
-                const total = (parseFloat(res.data.total_discount) || 0) + (parseFloat(res.data.total_coupon_discount) || 0);
-                const count = parseInt(res.data.discounted_orders) || 0;
-                amountEl.textContent = '₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-                subEl.textContent = count > 0
-                    ? `Discounts & coupons applied on ${count} order${count !== 1 ? 's' : ''}`
-                    : 'Discounts & coupons applied';
-            } catch (_) {
-                amountEl.textContent = '—';
-            }
         }
 
         // ── Auto-refresh Dashboard / Sales Overview in the background ──
@@ -1059,7 +972,6 @@ if (isset($_GET['action'])) {
             dashboardInterval = setInterval(() => {
                 if (document.visibilityState === 'visible' && selectedDate === todayStr()) {
                     loadAllBranchesFromDB();
-                    loadTotalDiscounts();
                 }
             }, 8000); // check for new transactions every 8 seconds
         }
@@ -1069,7 +981,6 @@ if (isset($_GET['action'])) {
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible' && selectedDate === todayStr()) {
                 loadAllBranchesFromDB();
-                loadTotalDiscounts();
             }
         });
 
@@ -1221,31 +1132,15 @@ if (isset($_GET['action'])) {
         async function openHistoryModal(e) {
             e.preventDefault();
             document.getElementById('historyModal').classList.remove('hidden');
-            pushModalHistory();
             const branchId = branchIdMap[currentBranch];
             const tbody    = document.getElementById('history-modal-body');
-            const cardsEl  = document.getElementById('history-modal-cards');
 
             try {
                 const res = await fetch(`admin.php?action=branch&id=${branchId}&date=${selectedDate}`, { credentials: 'same-origin' }).then(r => r.json());
                 if (!res.success || !res.transactions.length) {
-                    tbody.innerHTML   = `<tr><td colspan="5" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
-                    if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">No transactions for this branch on the selected date.</div>`;
+                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No transactions for this branch on the selected date.</td></tr>`;
                     return;
                 }
-                const methodBadge = (method) => {
-                    const m = (method || '—').toUpperCase();
-                    const color = m === 'GCASH'
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'bg-emerald-50 text-emerald-600';
-                    return `<span class="px-2 py-1 rounded-full text-[10px] font-bold ${color}">${m}</span>`;
-                };
-                const discountCell = (t) => {
-                    const amt = (parseFloat(t.discount) || 0) + (parseFloat(t.coupon_discount) || 0);
-                    return amt > 0
-                        ? `<span class="text-rose-500 font-bold">− ₱${amt.toLocaleString('en-PH', { minimumFractionDigits: 2 })}</span>`
-                        : `<span class="text-slate-300">—</span>`;
-                };
                 tbody.innerHTML = res.transactions.map(t => {
                     const dt        = parseUTC(t.created_at);
                     const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
@@ -1259,40 +1154,13 @@ if (isset($_GET['action'])) {
                             <p class="font-bold text-slate-800">${t.items_summary || '—'}</p>
                             <p class="text-xs text-slate-400 mt-0.5"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
                         </td>
-                        <td class="px-6 py-4">${methodBadge(t.payment_method)}</td>
-                        <td class="px-6 py-4 text-sm">${discountCell(t)}</td>
                         <td class="px-6 py-4 text-right font-black text-emerald-600 text-lg">
                             ₱ ${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}
                         </td>
                     </tr>`;
                 }).join('');
-
-                // Mobile: same data, stacked vertically per transaction
-                // (date/ref/items on top, amount right below) so nothing
-                // is ever cut off the side of the screen.
-                if (cardsEl) {
-                    cardsEl.innerHTML = res.transactions.map(t => {
-                        const dt        = parseUTC(t.created_at);
-                        const time      = dt.toLocaleTimeString('en-PH', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' });
-                        const dateLabel = dt.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
-                        const discAmt   = (parseFloat(t.discount) || 0) + (parseFloat(t.coupon_discount) || 0);
-                        return `<div class="p-4">
-                            <div class="flex items-center justify-between gap-2 mb-1">
-                                <span class="bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded text-[10px] font-bold uppercase">${dateLabel} · ${time}</span>
-                                <p class="font-black text-emerald-600 text-base shrink-0">₱${parseFloat(t.total).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</p>
-                            </div>
-                            <p class="font-bold text-slate-800 text-sm">${t.items_summary || '—'}</p>
-                            <div class="flex items-center justify-between gap-2 mt-1">
-                                <p class="text-xs text-slate-400"><i class="fas fa-hashtag"></i> ${t.reference_no}</p>
-                                ${methodBadge(t.payment_method)}
-                            </div>
-                            ${discAmt > 0 ? `<p class="text-xs text-rose-500 font-bold mt-1">− ₱${discAmt.toLocaleString('en-PH', { minimumFractionDigits: 2 })} discount applied</p>` : ''}
-                        </div>`;
-                    }).join('');
-                }
             } catch (_) {
-                tbody.innerHTML = `<tr><td colspan="5" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
-                if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-red-400 text-sm">Failed to load.</div>`;
+                tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
             }
         }
 
@@ -1300,49 +1168,27 @@ if (isset($_GET['action'])) {
         async function openStocksModal(e) {
             e.preventDefault();
             document.getElementById('stocksModal').classList.remove('hidden');
-            pushModalHistory();
-            const tbody   = document.getElementById('stocks-modal-body');
-            const cardsEl = document.getElementById('stocks-modal-cards');
+            const tbody = document.getElementById('stocks-modal-body');
 
             try {
                 const res = await api.products.list();
                 if (!res.success || !res.data.length) {
-                    tbody.innerHTML   = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No products found.</td></tr>`;
-                    if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-slate-400 text-sm">No products found.</div>`;
+                    tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-slate-400">No products found.</td></tr>`;
                     return;
                 }
-                const statusFor = (stock) => {
-                    if      (stock <= 0)  return { html: `<span class="bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Out of Stock</span>`, chip: 'bg-red-50 text-red-600 border-red-100' };
-                    else if (stock <= 10) return { html: `<span class="bg-amber-50 text-amber-600 border border-amber-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Low Stock</span>`, chip: 'bg-amber-50 text-amber-600 border-amber-100' };
-                    else                  return { html: `<span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-1 rounded text-[10px] font-bold uppercase">In Stock</span>`, chip: 'bg-emerald-50 text-emerald-600 border-emerald-100' };
-                };
-
                 tbody.innerHTML = res.data.map(p => {
-                    const status = statusFor(p.stock);
+                    let statusHtml;
+                    if      (p.stock <= 0)  statusHtml = `<span class="bg-red-50 text-red-600 border border-red-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Out of Stock</span>`;
+                    else if (p.stock <= 10) statusHtml = `<span class="bg-amber-50 text-amber-600 border border-amber-100 px-2 py-1 rounded text-[10px] font-bold uppercase">Low Stock</span>`;
+                    else                   statusHtml = `<span class="bg-emerald-50 text-emerald-600 border border-emerald-100 px-2 py-1 rounded text-[10px] font-bold uppercase">In Stock</span>`;
                     return `<tr class="hover:bg-slate-50 transition-colors">
                         <td class="px-6 py-4 font-bold text-slate-800">${p.name}</td>
                         <td class="px-6 py-4 text-slate-600 font-medium">${p.stock} units</td>
-                        <td class="px-6 py-4">${status.html}</td>
+                        <td class="px-6 py-4">${statusHtml}</td>
                     </tr>`;
                 }).join('');
-
-                // Mobile: item name + stock on top, status badge right
-                // below it — no columns squeezed side-by-side.
-                if (cardsEl) {
-                    cardsEl.innerHTML = res.data.map(p => {
-                        const status = statusFor(p.stock);
-                        return `<div class="p-4 flex items-center justify-between gap-3">
-                            <div class="min-w-0">
-                                <p class="font-bold text-slate-800 text-sm truncate">${p.name}</p>
-                                <p class="text-xs text-slate-500 mt-0.5">${p.stock} units</p>
-                            </div>
-                            ${status.html}
-                        </div>`;
-                    }).join('');
-                }
             } catch (_) {
                 tbody.innerHTML = `<tr><td colspan="3" class="text-center py-8 text-red-400">Failed to load.</td></tr>`;
-                if (cardsEl) cardsEl.innerHTML = `<div class="p-6 text-center text-red-400 text-sm">Failed to load.</div>`;
             }
         }
 
@@ -1425,7 +1271,7 @@ if (isset($_GET['action'])) {
             document.querySelectorAll('.nav-link').forEach(l => { l.classList.remove('is-active'); l.classList.add('is-inactive'); });
             const al = document.getElementById('nav-' + pageId);
             if (al) { al.classList.remove('is-inactive'); al.classList.add('is-active'); }
-            if (pageId === 'stats' && !chartsRendered) { initCharts(); loadTopMoving(); loadTotalDiscounts(); chartsRendered = true; }
+            if (pageId === 'stats' && !chartsRendered) { initCharts(); loadTopMoving(); chartsRendered = true; }
             if (pageId === 'live') { startLiveFeed(); } else { stopLiveFeed(); }
         }
 
@@ -1458,46 +1304,10 @@ if (isset($_GET['action'])) {
             document.getElementById('modalStatus').innerText   = status;
             document.getElementById('modalLocation').innerText = location;
             document.getElementById('branchModal').classList.remove('hidden');
-            pushModalHistory();
         }
-        function closeModal()        { closeModalWithHistory('branchModal'); }
-        function closeHistoryModal() { closeModalWithHistory('historyModal'); }
-        function closeStocksModal()  { closeModalWithHistory('stocksModal'); }
-
-        // ── Make the phone's back/return button close modals instead
-        //    of exiting the app ─────────────────────────────────
-        // Opening a modal normally doesn't add anything to browser
-        // history, so pressing the phone's back button has nowhere to
-        // go and the whole app closes. Fix: push a dummy history entry
-        // whenever a modal opens, and catch the back button (popstate)
-        // to close the modal instead of letting the browser navigate
-        // away / exit.
-        const MODAL_IDS = ['branchModal', 'historyModal', 'stocksModal'];
-        let modalHistoryPushed = false;
-
-        function pushModalHistory() {
-            history.pushState({ posModalOpen: true }, '');
-            modalHistoryPushed = true;
-        }
-
-        function closeModalWithHistory(modalId) {
-            document.getElementById(modalId).classList.add('hidden');
-            if (modalHistoryPushed) {
-                modalHistoryPushed = false;
-                history.back(); // consume the dummy entry so it doesn't linger
-            }
-        }
-
-        window.addEventListener('popstate', () => {
-            const openModalId = MODAL_IDS.find(id => {
-                const el = document.getElementById(id);
-                return el && !el.classList.contains('hidden');
-            });
-            if (openModalId) {
-                document.getElementById(openModalId).classList.add('hidden');
-                modalHistoryPushed = false;
-            }
-        });
+        function closeModal()        { document.getElementById('branchModal').classList.add('hidden'); }
+        function closeHistoryModal() { document.getElementById('historyModal').classList.add('hidden'); }
+        function closeStocksModal()  { document.getElementById('stocksModal').classList.add('hidden'); }
 
         // ── Logout ─────────────────────────────────────────────
         async function logoutSession() {
@@ -1652,17 +1462,15 @@ if (isset($_GET['action'])) {
 
         // ── Charts ─────────────────────────────────────────────
         async function loadTopMoving() {
-            const tbody   = document.getElementById('top-moving-tbody');
-            const cardsEl = document.getElementById('top-moving-cards');
+            const tbody = document.getElementById('top-moving-tbody');
             try {
                 const res = await fetch('admin.php?action=top_moving', { credentials: 'same-origin' }).then(r => r.json());
                 if (!res.success || !res.data.length) {
                     tbody.innerHTML = '<tr><td colspan="4" class="px-8 py-8 text-center text-slate-400">No sales data yet.</td></tr>';
-                    if (cardsEl) cardsEl.innerHTML = '<div class="px-6 py-8 text-center text-slate-400 text-sm">No sales data yet.</div>';
                     return;
                 }
                 const maxQty = Math.max(...res.data.map(p => parseInt(p.total_qty)));
-                const rows = res.data.map(p => {
+                tbody.innerHTML = res.data.map(p => {
                     const qty = parseInt(p.total_qty);
                     const pct = Math.round((qty / maxQty) * 100);
                     let status, statusColor, barColor;
@@ -1673,11 +1481,7 @@ if (isset($_GET['action'])) {
                     } else {
                         status = 'Low';         statusColor = 'text-amber-400';   barColor = 'bg-amber-400';
                     }
-                    return { p, qty, pct, status, statusColor, barColor };
-                });
-
-                tbody.innerHTML = rows.map(({ p, qty, pct, status, statusColor, barColor }) =>
-                    `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+                    return `<tr class="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
                         <td class="px-8 py-5 font-bold text-slate-800 dark:text-slate-200">${p.name}</td>
                         <td class="px-8 py-5 text-slate-500 dark:text-slate-400">${qty.toLocaleString()}</td>
                         <td class="px-8 py-5 font-semibold ${statusColor}">${status}</td>
@@ -1686,28 +1490,10 @@ if (isset($_GET['action'])) {
                                 <div class="h-full ${barColor} rounded-full" style="width:${pct}%"></div>
                             </div>
                         </td>
-                    </tr>`
-                ).join('');
-
-                // Mobile: product + status on top, full-width performance
-                // bar below it — no columns to squeeze side-by-side.
-                if (cardsEl) {
-                    cardsEl.innerHTML = rows.map(({ p, qty, pct, status, statusColor, barColor }) =>
-                        `<div class="px-6 py-4">
-                            <div class="flex items-center justify-between gap-2 mb-1">
-                                <p class="font-bold text-slate-800 dark:text-slate-200 text-sm">${p.name}</p>
-                                <span class="font-semibold ${statusColor} text-xs shrink-0">${status}</span>
-                            </div>
-                            <p class="text-xs text-slate-400 mb-2">${qty.toLocaleString()} units sold</p>
-                            <div class="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                                <div class="h-full ${barColor} rounded-full" style="width:${pct}%"></div>
-                            </div>
-                        </div>`
-                    ).join('');
-                }
+                    </tr>`;
+                }).join('');
             } catch (_) {
                 tbody.innerHTML = '<tr><td colspan="4" class="px-8 py-8 text-center text-red-400">Failed to load.</td></tr>';
-                if (cardsEl) cardsEl.innerHTML = '<div class="px-6 py-8 text-center text-red-400 text-sm">Failed to load.</div>';
             }
         }
 
