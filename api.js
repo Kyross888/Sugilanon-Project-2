@@ -171,13 +171,6 @@ async function requireLogin() {
             window.location.href = 'login.php';
             return null;
         }
-        // Staff pages are staff-only — an admin account landing here
-        // (e.g. by typing the URL directly) gets sent to their own
-        // admin dashboard instead of seeing/using the staff view.
-        if (res.user.role === 'admin') {
-            window.location.href = 'admin.php';
-            return null;
-        }
         const el = document.getElementById('userGreeting');
         if (el) el.textContent = res.user.name;
         return res.user;
