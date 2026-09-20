@@ -7,6 +7,12 @@ header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type');
 
+// This endpoint reflects whoever is currently logged in — it must never be
+// served from a browser/PWA cache, or switching accounts on the same device
+// can show the previous user's session data.
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+
 require_once 'db.php';
 
 $action = $_GET['action'] ?? '';
