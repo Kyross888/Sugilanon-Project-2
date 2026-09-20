@@ -69,21 +69,6 @@ if (isset($_GET['action'])) {
     }
 
     if ($action === 'total_discounts') {
-        // All-time total discounts + coupon discounts given, and how
-        // many completed transactions actually had one applied.
-        $stmt = $pdo->prepare("
-            SELECT
-                COALESCE(SUM(discount), 0)        AS total_discount,
-                COALESCE(SUM(coupon_discount), 0) AS total_coupon_discount,
-                COUNT(*) FILTER (WHERE discount > 0 OR coupon_discount > 0) AS discounted_orders
-            FROM transactions
-            WHERE status = 'completed'
-        ");
-        $stmt->execute();
-        respond(['success' => true, 'data' => $stmt->fetch()]);
-    }
-
-    if ($action === 'total_discounts') {
         // Optional ?date=YYYY-MM-DD scopes to that day (used by Sales
         // Overview's Today/Yesterday/custom date filter). No date = all-time.
         $date = $_GET['date'] ?? null;
@@ -592,6 +577,7 @@ if (isset($_GET['action'])) {
                             <div class="flex flex-col min-w-0">
                                 <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Branch</span>
                                 <select id="branchSelect" onchange="switchBranch()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
+                                    <option value="all">All Branches</option>
                                     <option value="festive">Festive Mall</option>
                                     <option value="sm_central">SM Central Market</option>
                                     <option value="gen_luna" selected>General Luna</option>
@@ -782,6 +768,7 @@ if (isset($_GET['action'])) {
                         <div class="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm">
                             <i class="fas fa-store text-indigo-500 text-sm"></i>
                             <select id="branchSelectSales" onchange="switchBranchFromSales()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
+                                <option value="all">All Branches</option>
                                 <option value="festive">Festive Mall</option>
                                 <option value="sm_central">SM Central Market</option>
                                 <option value="gen_luna" selected>General Luna</option>
@@ -941,11 +928,13 @@ if (isset($_GET['action'])) {
         }
         // ── Branch Maps ────────────────────────────────────────
         const branchIdMap = {
+            all: 0,
             festive: 1, sm_central: 2, gen_luna: 3, jaro: 4,
             molo: 5, la_paz: 6, calumpang: 7, tagbak: 8,
         };
 
         const branchInfo = {
+            all:        { name: 'All Branches',       location: 'All branches combined',                   status: 'Active' },
             festive:    { name: 'Festive Mall',       location: 'Festive Walk Mall, Iloilo City',          status: 'Active' },
             sm_central: { name: 'SM Central Market',  location: 'SM City Iloilo, Central Market Area',     status: 'Active' },
             gen_luna:   { name: 'General Luna',       location: 'General Luna St., Iloilo City',           status: 'Active' },
@@ -1662,23 +1651,6 @@ if (isset($_GET['action'])) {
         }
 
         // ── Charts ─────────────────────────────────────────────
-        async function loadTotalDiscounts() {
-            const amountEl = document.getElementById('stat-total-discounts');
-            const subEl    = document.getElementById('stat-discounts-sub');
-            try {
-                const res = await fetch('admin.php?action=total_discounts', { credentials: 'same-origin' }).then(r => r.json());
-                if (!res.success) return;
-                const total = (parseFloat(res.data.total_discount) || 0) + (parseFloat(res.data.total_coupon_discount) || 0);
-                const count = parseInt(res.data.discounted_orders) || 0;
-                amountEl.textContent = '₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-                subEl.textContent = count > 0
-                    ? `Discounts & coupons applied on ${count} order${count !== 1 ? 's' : ''}`
-                    : 'Discounts & coupons applied';
-            } catch (_) {
-                amountEl.textContent = '—';
-            }
-        }
-
         async function loadTopMoving() {
             const tbody   = document.getElementById('top-moving-tbody');
             const cardsEl = document.getElementById('top-moving-cards');
