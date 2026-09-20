@@ -69,21 +69,6 @@ if (isset($_GET['action'])) {
     }
 
     if ($action === 'total_discounts') {
-        // All-time total discounts + coupon discounts given, and how
-        // many completed transactions actually had one applied.
-        $stmt = $pdo->prepare("
-            SELECT
-                COALESCE(SUM(discount), 0)        AS total_discount,
-                COALESCE(SUM(coupon_discount), 0) AS total_coupon_discount,
-                COUNT(*) FILTER (WHERE discount > 0 OR coupon_discount > 0) AS discounted_orders
-            FROM transactions
-            WHERE status = 'completed'
-        ");
-        $stmt->execute();
-        respond(['success' => true, 'data' => $stmt->fetch()]);
-    }
-
-    if ($action === 'total_discounts') {
         // Optional ?date=YYYY-MM-DD scopes to that day (used by Sales
         // Overview's Today/Yesterday/custom date filter). No date = all-time.
         $date = $_GET['date'] ?? null;
@@ -1662,23 +1647,6 @@ if (isset($_GET['action'])) {
         }
 
         // ── Charts ─────────────────────────────────────────────
-        async function loadTotalDiscounts() {
-            const amountEl = document.getElementById('stat-total-discounts');
-            const subEl    = document.getElementById('stat-discounts-sub');
-            try {
-                const res = await fetch('admin.php?action=total_discounts', { credentials: 'same-origin' }).then(r => r.json());
-                if (!res.success) return;
-                const total = (parseFloat(res.data.total_discount) || 0) + (parseFloat(res.data.total_coupon_discount) || 0);
-                const count = parseInt(res.data.discounted_orders) || 0;
-                amountEl.textContent = '₱' + total.toLocaleString('en-PH', { minimumFractionDigits: 2 });
-                subEl.textContent = count > 0
-                    ? `Discounts & coupons applied on ${count} order${count !== 1 ? 's' : ''}`
-                    : 'Discounts & coupons applied';
-            } catch (_) {
-                amountEl.textContent = '—';
-            }
-        }
-
         async function loadTopMoving() {
             const tbody   = document.getElementById('top-moving-tbody');
             const cardsEl = document.getElementById('top-moving-cards');
