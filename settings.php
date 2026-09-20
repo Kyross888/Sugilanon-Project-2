@@ -532,6 +532,12 @@
                 window.location.href = 'login.php';
                 return;
             }
+            // This Settings page is the staff-only version — an admin
+            // account should manage their profile from admin.php instead.
+            if (res.user.role === 'admin') {
+                window.location.href = 'admin.php';
+                return;
+            }
             const u = res.user;
             // Use branch_name from API (fetched live from DB) — fallback to local map
             const branchName = u.branch_name || (u.branch_id ? (BRANCH_NAMES[u.branch_id] || 'Branch ' + u.branch_id) : null);
