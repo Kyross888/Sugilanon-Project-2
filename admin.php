@@ -577,6 +577,7 @@ if (isset($_GET['action'])) {
                             <div class="flex flex-col min-w-0">
                                 <span class="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none mb-1">Branch</span>
                                 <select id="branchSelect" onchange="switchBranch()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
+                                    <option value="all">All Branches</option>
                                     <option value="festive">Festive Mall</option>
                                     <option value="sm_central">SM Central Market</option>
                                     <option value="gen_luna" selected>General Luna</option>
@@ -767,6 +768,7 @@ if (isset($_GET['action'])) {
                         <div class="flex items-center gap-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 shadow-sm">
                             <i class="fas fa-store text-indigo-500 text-sm"></i>
                             <select id="branchSelectSales" onchange="switchBranchFromSales()" class="text-sm font-bold text-slate-800 dark:text-slate-200 bg-transparent border-none outline-none cursor-pointer dark:bg-slate-800">
+                                <option value="all">All Branches</option>
                                 <option value="festive">Festive Mall</option>
                                 <option value="sm_central">SM Central Market</option>
                                 <option value="gen_luna" selected>General Luna</option>
@@ -926,11 +928,13 @@ if (isset($_GET['action'])) {
         }
         // ── Branch Maps ────────────────────────────────────────
         const branchIdMap = {
+            all: 0,
             festive: 1, sm_central: 2, gen_luna: 3, jaro: 4,
             molo: 5, la_paz: 6, calumpang: 7, tagbak: 8,
         };
 
         const branchInfo = {
+            all:        { name: 'All Branches',       location: 'All branches combined',                   status: 'Active' },
             festive:    { name: 'Festive Mall',       location: 'Festive Walk Mall, Iloilo City',          status: 'Active' },
             sm_central: { name: 'SM Central Market',  location: 'SM City Iloilo, Central Market Area',     status: 'Active' },
             gen_luna:   { name: 'General Luna',       location: 'General Luna St., Iloilo City',           status: 'Active' },
