@@ -21,7 +21,10 @@ async function fetchWithTimeout(url, opts = {}, timeoutMs = 10000) {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     try {
-        const res = await fetch(url, { ...opts, signal: controller.signal });
+        // Every API call reflects the currently logged-in session's data —
+        // never let the browser reuse a cached response from a different
+        // account that was previously logged in on this same device.
+        const res = await fetch(url, { cache: 'no-store', ...opts, signal: controller.signal });
         clearTimeout(timer);
         return res;
     } catch (err) {
@@ -40,6 +43,7 @@ const api = {
         const opts = {
             method,
             credentials: 'same-origin',
+            cache: 'no-store',
             headers: { 'Content-Type': 'application/json' },
         };
         if (body) opts.body = JSON.stringify(body);
