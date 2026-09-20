@@ -173,8 +173,25 @@ function respond(array $data, int $code = 200): void {
 }
 
 function requireAuth(): array {
+    global $pdo;
+
     if (empty($_SESSION['user'])) {
         respond(['success' => false, 'error' => 'Not authenticated'], 401);
     }
+
+    // Session data is only set once, at login — if an admin later changes
+    // this user's branch or role while they're still logged in, the old
+    // session would otherwise keep using the stale value until they log
+    // out and back in. Re-check branch_id/role against the database on
+    // every request so changes take effect immediately.
+    $stmt = $pdo->prepare("SELECT branch_id, role FROM users WHERE id = ? LIMIT 1");
+    $stmt->execute([$_SESSION['user']['id']]);
+    $fresh = $stmt->fetch();
+
+    if ($fresh) {
+        $_SESSION['user']['branch_id'] = $fresh['branch_id'];
+        $_SESSION['user']['role']      = $fresh['role'];
+    }
+
     return $_SESSION['user'];
 }
