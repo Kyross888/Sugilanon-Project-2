@@ -3,6 +3,13 @@
 //  db.php  —  Supabase PostgreSQL Connection (Session Pooler)
 // ============================================================
 
+// Keep PHP's own clock in sync with the database's timezone
+// (set below via SET TIME ZONE 'Asia/Manila'). Without this, PHP's
+// date()/strtotime() calls would silently use a different timezone
+// than Postgres, causing expiry dates to be computed/compared
+// incorrectly (e.g. the "remember me" login token).
+date_default_timezone_set('Asia/Manila');
+
 define('DB_HOST',    'aws-1-ap-southeast-1.pooler.supabase.com');
 define('DB_NAME',    'postgres');
 define('DB_USER',    'postgres.luzzuclmtjfphkcjrjzc');
@@ -138,20 +145,21 @@ if (!empty($_COOKIE['remember_me'])) {
                 ];
             }
 
-            // Roll the window forward if it's more than 90 days old, so
-            // regular use never actually expires — effectively permanent.
+            // Roll the 31-day window forward if it's more than 5 days
+            // old, so regular use (daily or every few days) never
+            // actually expires — only ~31 days of total inactivity does.
             $secondsLeft = strtotime($u['remember_expires']) - time();
-            if ($secondsLeft < 60 * 60 * 24 * (365 * 10 - 90)) {
+            if ($secondsLeft < 60 * 60 * 24 * 26) {
                 $newSelector  = bin2hex(random_bytes(16));
                 $newValidator = bin2hex(random_bytes(32));
-                $expires      = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 365 * 10); // 10 years
+                $expires      = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 31); // 31 days
 
                 $pdo->prepare(
                     "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
                 )->execute([$newSelector, hash('sha256', $newValidator), $expires, $u['id']]);
 
                 setcookie('remember_me', $newSelector . ':' . $newValidator, [
-                    'expires'  => time() + 60 * 60 * 24 * 365 * 10,
+                    'expires'  => time() + 60 * 60 * 24 * 31,
                     'path'     => '/',
                     'secure'   => true,
                     'httponly' => true,
