@@ -114,13 +114,12 @@ if (session_status() === PHP_SESSION_NONE) {
 // both admin and staff accounts, since it's keyed off the logged-in
 // user's row, not their role.
 //
-// This also keeps the login window rolling forward with regular use:
-// any time the cookie is seen (whether the session needed restoring or
-// was already active), if it's more than 90 days old we issue a fresh
-// 10-year token. That way regular use (daily, weekly, monthly, even
-// occasional) never actually runs out — this is effectively permanent
-// and only ends if the account is unused for years, cookies are
-// cleared, or the person logs out.
+// This also keeps the login window rolling forward with regular use: any
+// time the cookie is seen with less than ~9 years left on it, we issue a
+// fresh 10-year token. Combined with the auto-restore above, this means
+// as long as the app is opened at least once every 10 years, the person
+// is never asked to log in again — only clearing cookies, wiping the
+// database record, or explicitly logging out ends it.
 if (!empty($_COOKIE['remember_me'])) {
     $parts = explode(':', $_COOKIE['remember_me'], 2);
     if (count($parts) === 2) {
@@ -145,32 +144,47 @@ if (!empty($_COOKIE['remember_me'])) {
                 ];
             }
 
-            // Roll the 31-day window forward if it's more than 5 days
-            // old, so regular use (daily or every few days) never
-            // actually expires — only ~31 days of total inactivity does.
+            // Roll the window forward once it's within ~1 year of expiry,
+            // so normal use never actually runs it out.
             $secondsLeft = strtotime($u['remember_expires']) - time();
-            if ($secondsLeft < 60 * 60 * 24 * 26) {
-                $newSelector  = bin2hex(random_bytes(16));
-                $newValidator = bin2hex(random_bytes(32));
-                $expires      = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * 31); // 31 days
-
-                $pdo->prepare(
-                    "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
-                )->execute([$newSelector, hash('sha256', $newValidator), $expires, $u['id']]);
-
-                setcookie('remember_me', $newSelector . ':' . $newValidator, [
-                    'expires'  => time() + 60 * 60 * 24 * 31,
-                    'path'     => '/',
-                    'secure'   => true,
-                    'httponly' => true,
-                    'samesite' => 'Lax',
-                ]);
+            if ($secondsLeft < 60 * 60 * 24 * 365) {
+                issueRememberMeCookie($pdo, $u['id']);
             }
         } elseif (empty($_SESSION['user'])) {
             // Invalid/expired token and no active session — clear the bad cookie
             setcookie('remember_me', '', ['expires' => time() - 3600, 'path' => '/']);
         }
     }
+}
+
+/**
+ * Issue (or renew) the long-lived "remember me" cookie for a user and
+ * store its matching selector/validator in the DB. Call this from every
+ * login path (email/password, Google Sign-In, etc.) right after
+ * $_SESSION['user'] is set, so no login method is left on just the
+ * short-lived PHP session.
+ *
+ * Set to 10 years so, in practice, the person is never asked to log in
+ * again on that device — it only ends if they log out, clear cookies,
+ * or the account goes unused for a decade.
+ */
+function issueRememberMeCookie(PDO $pdo, int $userId): void {
+    $selector  = bin2hex(random_bytes(16));
+    $validator = bin2hex(random_bytes(32));
+    $days      = 3650; // 10 years — effectively "forever"
+    $expires   = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * $days);
+
+    $pdo->prepare(
+        "UPDATE users SET remember_selector = ?, remember_validator_hash = ?, remember_expires = ? WHERE id = ?"
+    )->execute([$selector, hash('sha256', $validator), $expires, $userId]);
+
+    setcookie('remember_me', $selector . ':' . $validator, [
+        'expires'  => time() + 60 * 60 * 24 * $days,
+        'path'     => '/',
+        'secure'   => true,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
 }
 
 function respond(array $data, int $code = 200): void {
