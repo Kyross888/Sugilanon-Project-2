@@ -114,12 +114,12 @@ if (session_status() === PHP_SESSION_NONE) {
 // both admin and staff accounts, since it's keyed off the logged-in
 // user's row, not their role.
 //
-// This also keeps the login window rolling forward with regular use: any
-// time the cookie is seen with less than ~9 years left on it, we issue a
-// fresh 10-year token. Combined with the auto-restore above, this means
-// as long as the app is opened at least once every 10 years, the person
-// is never asked to log in again — only clearing cookies, wiping the
-// database record, or explicitly logging out ends it.
+// This also keeps the 31-day login window rolling forward with regular
+// use: any time the cookie is seen with less than 5 days left on it, we
+// issue a fresh 31-day token. That way regular use (at least once a
+// month) never actually runs out — only ~31 days of total inactivity
+// does, or the account is unused for that long, cookies are cleared,
+// or the person logs out.
 if (!empty($_COOKIE['remember_me'])) {
     $parts = explode(':', $_COOKIE['remember_me'], 2);
     if (count($parts) === 2) {
@@ -144,10 +144,10 @@ if (!empty($_COOKIE['remember_me'])) {
                 ];
             }
 
-            // Roll the window forward once it's within ~1 year of expiry,
-            // so normal use never actually runs it out.
+            // Roll the 31-day window forward once it's within 5 days of
+            // expiry, so normal use never actually runs it out.
             $secondsLeft = strtotime($u['remember_expires']) - time();
-            if ($secondsLeft < 60 * 60 * 24 * 365) {
+            if ($secondsLeft < 60 * 60 * 24 * 5) {
                 issueRememberMeCookie($pdo, $u['id']);
             }
         } elseif (empty($_SESSION['user'])) {
@@ -158,20 +158,16 @@ if (!empty($_COOKIE['remember_me'])) {
 }
 
 /**
- * Issue (or renew) the long-lived "remember me" cookie for a user and
- * store its matching selector/validator in the DB. Call this from every
- * login path (email/password, Google Sign-In, etc.) right after
+ * Issue (or renew) the 31-day "remember me" cookie for a user and store
+ * its matching selector/validator in the DB. Call this from every login
+ * path (email/password, Google Sign-In, etc.) right after
  * $_SESSION['user'] is set, so no login method is left on just the
  * short-lived PHP session.
- *
- * Set to 10 years so, in practice, the person is never asked to log in
- * again on that device — it only ends if they log out, clear cookies,
- * or the account goes unused for a decade.
  */
 function issueRememberMeCookie(PDO $pdo, int $userId): void {
     $selector  = bin2hex(random_bytes(16));
     $validator = bin2hex(random_bytes(32));
-    $days      = 3650; // 10 years — effectively "forever"
+    $days      = 31; // 31 days
     $expires   = date('Y-m-d H:i:s', time() + 60 * 60 * 24 * $days);
 
     $pdo->prepare(
