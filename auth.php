@@ -187,6 +187,36 @@ switch ($action) {
         respond(['success' => true, 'message' => 'Password updated successfully.']);
         break;
 
+    // ── UPDATE PROFILE (full name only) ──────────────────────
+    case 'update_profile':
+        $user = requireAuth();
+        $body = json_decode(file_get_contents('php://input'), true) ?? [];
+        $fullName = trim(preg_replace('/\s+/', ' ', $body['full_name'] ?? ''));
+
+        if ($fullName === '') {
+            respond(['success' => false, 'error' => 'Full name is required.'], 400);
+        }
+        if (mb_strlen($fullName) > 160) {
+            respond(['success' => false, 'error' => 'Name is too long.'], 400);
+        }
+
+        // Last word = last name, everything before it = first name
+        $pos = mb_strrpos($fullName, ' ');
+        if ($pos === false) {
+            $first = $fullName;
+            $last  = '';
+        } else {
+            $first = mb_substr($fullName, 0, $pos);
+            $last  = mb_substr($fullName, $pos + 1);
+        }
+
+        $pdo->prepare("UPDATE users SET first_name = ?, last_name = ? WHERE id = ?")
+            ->execute([$first, $last, $user['id']]);
+
+        $_SESSION['user']['name'] = $fullName;
+        respond(['success' => true, 'name' => $fullName]);
+        break;
+
     default:
         respond(['success' => false, 'error' => 'Unknown action.'], 400);
 }
