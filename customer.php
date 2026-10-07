@@ -275,6 +275,37 @@ if (!isset($_GET['action'])) {
             background: #fed7d7;
         }
         
+        .btn-restore {
+            background: #ebf8ff;
+            color: #2b6cb0;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        
+        .btn-restore:hover {
+            background: #bee3f8;
+        }
+        
+        .btn-toggle-deleted {
+            background: #fff5f5;
+            color: var(--danger);
+            border: 1px solid #fed7d7;
+            padding: 10px 14px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        .btn-toggle-deleted.active {
+            background: var(--danger);
+            color: white;
+        }
+        
         .content {
             padding: 30px;
             overflow-y: auto;
@@ -427,8 +458,9 @@ if (!isset($_GET['action'])) {
 
     <div class="main">
         <header class="header">
-            <h2 style="margin:0;">Customer Orders</h2>
+            <h2 style="margin:0;" id="pageTitle">Customer Orders</h2>
             <div class="header-actions">
+                <button class="btn-toggle-deleted" id="toggleDeletedBtn" onclick="toggleDeleted()"><i class="fa-solid fa-trash-can-arrow-up"></i> Deleted</button>
                 <input type="date" class="date-filter" id="dateFilter" onchange="filterOrders()">
                 <input type="text" class="search-input" id="searchInput" placeholder="Search ref, type, item..." onkeyup="filterOrders()">
             </div>
@@ -506,6 +538,7 @@ const api = {
         get: (id) => fetchWithTimeout(`orders.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
         void: (id) => fetchWithTimeout(`orders.php?action=void&id=${id}`, { method: 'POST', credentials: 'same-origin' }).then(r => r.json()),
         delete: (id) => fetchWithTimeout(`orders.php?action=delete&id=${id}`, { method: 'POST', credentials: 'same-origin' }).then(r => r.json()),
+        restore: (id) => fetchWithTimeout(`orders.php?action=restore&id=${id}`, { method: 'POST', credentials: 'same-origin' }).then(r => r.json()),
     },
     customers: {
         list: (search = '') => fetchWithTimeout(`customers.php?action=list${search ? '&search=' + encodeURIComponent(search) : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
@@ -535,6 +568,7 @@ function fmt(n) {
     </script>
     <script>
         let allOrders = [];
+        let showDeleted = false;
 
         // ── Boot ──────────────────────────────────────────────
         async function init() {
@@ -547,7 +581,7 @@ function fmt(n) {
             const tbody = document.getElementById('customerTableBody');
             tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#718096;">Loading orders\u2026</td></tr>';
 
-            const res = await api.orders.list({ page: 1 });
+            const res = await api.orders.list(showDeleted ? { page: 1, status: 'voided' } : { page: 1 });
             if (!res.success) {
                 tbody.innerHTML = `<tr><td colspan="6" style="color:red;padding:20px;">Failed to load orders: ${res.error}</td></tr>`;
                 return;
@@ -584,7 +618,7 @@ function fmt(n) {
             const tbody = document.getElementById('customerTableBody');
 
             if (!orders.length) {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#718096;">No orders found. Orders placed in the POS Terminal will appear here automatically.</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;color:#718096;">' + (showDeleted ? 'No deleted orders.' : 'No orders found. Orders placed in the POS Terminal will appear here automatically.') + '</td></tr>';
                 return;
             }
 
@@ -627,12 +661,16 @@ function fmt(n) {
                         <td style="max-width:300px;">${itemsHtml}</td>
                         <td style="font-weight:700;">₱${total}</td>
                         <td style="text-align:right;">
+                            ${showDeleted ? `
+                            <button class="btn-restore" onclick="restoreOrder(${o.id})" title="Retrieve Transaction">
+                                <i class="fa-solid fa-rotate-left"></i> Retrieve
+                            </button>` : `
                             <button class="btn-print" onclick="printReceipt(${o.id})" title="Print Receipt">
                                 <i class="fa-solid fa-print"></i>
                             </button>
                             <button class="btn-delete" onclick="deleteOrder(${o.id})" title="Delete Transaction">
                                 <i class="fa-solid fa-trash"></i>
-                            </button>
+                            </button>`}
                         </td>
                     </tr>`;
             }).join('');
@@ -670,8 +708,8 @@ function fmt(n) {
 
             const ok = confirm(
                 'Delete order ' + o.reference_no + '?\n\n' +
-                'This permanently removes it from Customers, Sales Report, Dashboard and Analytics. ' +
-                'This cannot be undone.'
+                'It will be removed from Customers, Sales Report, Dashboard and Analytics. ' +
+                'You can bring it back later using the "Deleted" button.'
             );
             if (!ok) return;
 
@@ -685,6 +723,33 @@ function fmt(n) {
                 filterOrders();
             } catch (err) {
                 alert('Failed to delete: ' + err.message);
+            }
+        }
+
+        // ── Show / hide deleted orders ────────────────────────
+        function toggleDeleted() {
+            showDeleted = !showDeleted;
+            document.getElementById('toggleDeletedBtn').classList.toggle('active', showDeleted);
+            document.getElementById('pageTitle').textContent = showDeleted ? 'Deleted Orders' : 'Customer Orders';
+            loadOrders();
+        }
+
+        // ── Retrieve a deleted transaction ────────────────────
+        async function restoreOrder(id) {
+            const o = allOrders.find(x => x.id === id);
+            if (!o) return;
+            if (!confirm('Retrieve order ' + o.reference_no + ' and put it back in your sales?')) return;
+
+            try {
+                const res = await api.orders.restore(id);
+                if (!res.success) {
+                    alert('Failed to retrieve: ' + (res.error || 'Unknown error'));
+                    return;
+                }
+                allOrders = allOrders.filter(x => x.id !== id);
+                filterOrders();
+            } catch (err) {
+                alert('Failed to retrieve: ' + err.message);
             }
         }
 
