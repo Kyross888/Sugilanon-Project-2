@@ -156,4 +156,48 @@ if ($action === 'void') {
     respond(['success' => true]);
 }
 
+// ── DELETE ORDER (permanent) ─────────────────────────────────
+// Removes the transaction and its items from the database, so it
+// disappears everywhere (Customers, Sales Report, Dashboard,
+// Analytics, Admin). Stock deducted by the sale is put back.
+if ($action === 'delete') {
+    requireAuth();
+    // To limit deleting to admins only, uncomment the next line:
+    // if (($_SESSION['user']['role'] ?? '') !== 'admin') respond(['success' => false, 'error' => 'Admins only.'], 403);
+
+    $id = (int)($_GET['id'] ?? 0);
+    if ($id <= 0) respond(['success' => false, 'error' => 'Invalid order id.'], 400);
+
+    $pdo->beginTransaction();
+    try {
+        $chk = $pdo->prepare("SELECT status FROM transactions WHERE id = ?");
+        $chk->execute([$id]);
+        $txn = $chk->fetch();
+        if (!$txn) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Order not found.'], 404);
+        }
+
+        // Put stock back (only if the order was still completed, i.e. stock was still deducted)
+        if ($txn['status'] === 'completed') {
+            $pdo->prepare(
+                "UPDATE products p SET stock = p.stock + ti.quantity
+                 FROM transaction_items ti
+                 WHERE ti.transaction_id = ? AND ti.product_id = p.id"
+            )->execute([$id]);
+        }
+
+        // transaction_items are removed automatically (ON DELETE CASCADE),
+        // but delete them explicitly too in case the constraint is missing.
+        $pdo->prepare("DELETE FROM transaction_items WHERE transaction_id = ?")->execute([$id]);
+        $pdo->prepare("DELETE FROM transactions WHERE id = ?")->execute([$id]);
+
+        $pdo->commit();
+        respond(['success' => true]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        respond(['success' => false, 'error' => 'Delete failed: ' . $e->getMessage()], 500);
+    }
+}
+
 respond(['success' => false, 'error' => 'Unknown action.'], 400);
