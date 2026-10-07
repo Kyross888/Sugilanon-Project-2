@@ -7,14 +7,27 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type');
 
 require_once 'db.php';
+require_once 'branch_scope.php';
 
 $action = $_GET['action'] ?? 'list';
+
+// Loads a product's branch and blocks staff from other branches
+function assertProductAccess(PDO $pdo, int $id): void {
+    $q = $pdo->prepare("SELECT branch_id FROM products WHERE id = ?");
+    $q->execute([$id]);
+    $row = $q->fetch();
+    if (!$row) respond(['success' => false, 'error' => 'Product not found.'], 404);
+    assertBranchAccess($row['branch_id']);
+}
+
 
 // ── LIST ─────────────────────────────────────────────────────
 if ($action === 'list') {
     $cat      = $_GET['category'] ?? '';
     $search   = $_GET['search']   ?? '';
-    $branchId = $_GET['branch_id'] ?? '';
+    requireAuth();
+    // Staff: always their own branch. Admin: all, or one branch via ?branch_id=
+    $branchId = scopedBranchId();
 
     $sql    = "SELECT * FROM products WHERE is_active = TRUE";
     $params = [];
@@ -27,8 +40,8 @@ if ($action === 'list') {
         $sql .= " AND name LIKE ?";
         $params[] = "%{$search}%";
     }
-    if ($branchId) {
-        $sql .= " AND (branch_id = ? OR branch_id IS NULL)";
+    if ($branchId !== '' && $branchId !== null) {
+        $sql .= " AND branch_id = ?";
         $params[] = (int)$branchId;
     }
 
@@ -49,11 +62,13 @@ if ($action === 'list') {
 
 // ── GET SINGLE ───────────────────────────────────────────────
 if ($action === 'get') {
+    requireAuth();
     $id   = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare("SELECT * FROM products WHERE id = ? AND is_active = TRUE");
     $stmt->execute([$id]);
     $product = $stmt->fetch();
     if (!$product) respond(['success' => false, 'error' => 'Product not found.'], 404);
+    assertBranchAccess($product['branch_id']);
     respond(['success' => true, 'data' => $product]);
 }
 
@@ -84,6 +99,16 @@ if ($action === 'create') {
         respond(['success' => false, 'error' => 'Name and a valid price are required.'], 400);
     }
 
+    // Staff can only add products to their own branch.
+    // Admin picks a branch; leaving it blank adds the product to EVERY branch.
+    $authUser = $_SESSION['user'];
+    if (!isAdminUser($authUser)) {
+        if (empty($authUser['branch_id'])) {
+            respond(['success' => false, 'error' => 'Your account has no branch assigned.'], 403);
+        }
+        $branch_id = (int)$authUser['branch_id'];
+    }
+
     // Handle optional image upload — store as base64 data URI (works on Railway)
     $image_path = null;
     if (!empty($_FILES['image']['tmp_name'])) {
@@ -99,13 +124,23 @@ if ($action === 'create') {
     }
 
     try {
+        if ($branch_id) {
+            $targets = [(int)$branch_id];
+        } else {
+            $targets = $pdo->query("SELECT id FROM branches ORDER BY id")->fetchAll(PDO::FETCH_COLUMN);
+        }
+
         $stmt = $pdo->prepare(
             "INSERT INTO products (name, category, price, stock, image_path, icon, branch_id)
              VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id"
         );
-        $stmt->execute([$name, $category, $price, $stock, $image_path, $icon, $branch_id ?: null]);
-        $row = $stmt->fetch();
-        respond(['success' => true, 'id' => $row['id'], 'message' => 'Product added.']);
+        $firstId = null;
+        foreach ($targets as $bid) {
+            $stmt->execute([$name, $category, $price, $stock, $image_path, $icon, $bid]);
+            $row = $stmt->fetch();
+            if ($firstId === null) $firstId = $row['id'];
+        }
+        respond(['success' => true, 'id' => $firstId, 'message' => 'Product added.']);
     } catch (PDOException $e) {
         respond(['success' => false, 'error' => 'Insert failed: ' . $e->getMessage()], 500);
     }
@@ -115,6 +150,7 @@ if ($action === 'create') {
 if ($action === 'update') {
     requireAuth();
     $id = (int)($_GET['id'] ?? 0);
+    assertProductAccess($pdo, $id);
 
     // Support FormData (multipart) for image uploads during update
     $isMultipart = !empty($_POST);
@@ -142,6 +178,14 @@ if ($action === 'update') {
         }
     }
 
+    // Staff can't move a product to another branch
+    if (!isAdminUser()) {
+        foreach ($sets as $i => $set) {
+            if (strpos($set, 'branch_id') === 0) { unset($sets[$i], $params[$i]); }
+        }
+        $sets = array_values($sets); $params = array_values($params);
+    }
+
     // Handle image upload during update — store as base64 data URI (works on Railway)
     if (!empty($_FILES['image']['tmp_name'])) {
         $ext     = strtolower(pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION));
@@ -167,6 +211,7 @@ if ($action === 'update') {
 if ($action === 'adjust_stock') {
     requireAuth();
     $id    = (int)($_GET['id'] ?? 0);
+    assertProductAccess($pdo, $id);
     $body  = json_decode(file_get_contents('php://input'), true) ?? [];
     $delta = (int)($body['delta'] ?? 0);
     $pdo->prepare("UPDATE products SET stock = GREATEST(0, stock + ?) WHERE id = ?")->execute([$delta, $id]);
@@ -177,6 +222,7 @@ if ($action === 'adjust_stock') {
 if ($action === 'delete') {
     requireAuth();
     $id = (int)($_GET['id'] ?? 0);
+    assertProductAccess($pdo, $id);
     $pdo->prepare("UPDATE products SET is_active = FALSE WHERE id = ?")->execute([$id]);
     respond(['success' => true, 'message' => 'Product removed.']);
 }
