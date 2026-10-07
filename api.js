@@ -125,7 +125,8 @@ const api = {
             fetchWithTimeout(`orders.php?action=delete&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
-            }).then(r => r.json()),        restore: (id) =>
+            }).then(r => r.json()),
+        restore: (id) =>
             fetchWithTimeout(`orders.php?action=restore&id=${id}`, {
                 method: 'POST',
                 credentials: 'same-origin',
