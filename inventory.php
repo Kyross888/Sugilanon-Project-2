@@ -316,7 +316,20 @@
     <div class="main">
         <header class="header">
             <h2>Inventory Management</h2>
-            <button class="btn-add" onclick="openModal()">+ Add Product</button>
+            <div style="display:flex;gap:10px;align-items:center;">
+                <select id="branchSelect" onchange="renderInventory()" style="display:none;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;">
+                    <option value="">All branches</option>
+                    <option value="1">Festive Mall</option>
+                    <option value="2">SM Central Market</option>
+                    <option value="3">General Luna</option>
+                    <option value="4">Jaro</option>
+                    <option value="5">Molo</option>
+                    <option value="6">La Paz</option>
+                    <option value="7">Calumpang</option>
+                    <option value="8">Tagbak</option>
+                </select>
+                <button class="btn-add" onclick="openModal()">+ Add Product</button>
+            </div>
         </header>
 
         <div class="content">
@@ -388,8 +401,13 @@
     <script>
         let editingId = null;
 
+        let isAdmin = false;
+
         async function init() {
-            await requireLogin();
+            const user = await requireLogin();
+            // Admin can switch between branches; staff only ever see their own branch
+            isAdmin = !!user && user.role === 'admin';
+            if (isAdmin) document.getElementById('branchSelect').style.display = '';
             await renderInventory();
         }
 
@@ -397,7 +415,8 @@
             const tbody = document.getElementById('inventoryBody');
             tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#718096;">Loading…</td></tr>';
 
-            const res = await api.products.list();
+            const branchSel = isAdmin ? document.getElementById('branchSelect').value : '';
+            const res = await api.products.list(branchSel ? { branch_id: branchSel } : {});
             if (!res.success) {
                 tbody.innerHTML = `<tr><td colspan="7" style="color:red;padding:20px;">${res.error}</td></tr>`;
                 return;
@@ -458,6 +477,7 @@
             fd.append('category', document.getElementById('prodCategory').value);
             fd.append('price', document.getElementById('prodPrice').value);
             fd.append('stock', document.getElementById('prodStock').value);
+            if (isAdmin) fd.append('branch_id', document.getElementById('branchSelect').value);
             const imgEl = document.getElementById('prodImage');
             if (imgEl && imgEl.files[0]) fd.append('image', imgEl.files[0]);
 
