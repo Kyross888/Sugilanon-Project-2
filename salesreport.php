@@ -10,11 +10,13 @@ if (isset($_GET['date_from']) || isset($_GET['action'])) {
     header('Access-Control-Allow-Origin: *');
     date_default_timezone_set('Asia/Manila');
     require_once 'db.php';
+    require_once 'branch_scope.php';
     requireAuth();
 
     $date_from = $_GET['date_from'] ?? date('Y-m-d');
     $date_to   = $_GET['date_to']   ?? $date_from;
-    $branch_id = $_GET['branch_id'] ?? '';
+    // Staff are locked to their own branch; admin may pick one via ?branch_id=
+    $branch_id = scopedBranchId();
 
     $branchFilter = '';
     $params       = [$date_from, $date_to];
