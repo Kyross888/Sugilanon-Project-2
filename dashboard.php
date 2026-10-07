@@ -9,9 +9,11 @@ if (isset($_GET['action'])) {
     header('Content-Type: application/json');
     header('Access-Control-Allow-Origin: *');
     require_once 'db.php';
+    require_once 'branch_scope.php';
 
     $action   = $_GET['action'];
-    $branchId = $_GET['branch_id'] ?? '';
+    // Staff are locked to their own branch; admin may pick one via ?branch_id=
+    $branchId = scopedBranchId();
 
     $branchFilter = '';
     $branchParam  = [];
@@ -25,8 +27,12 @@ if (isset($_GET['action'])) {
         $rev = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS revenue, COUNT(*) AS orders FROM transactions WHERE DATE(created_at) = CURRENT_DATE AND status = 'completed' $branchFilter");
         $rev->execute($branchParam);
         $row = $rev->fetch();
-        $low  = $pdo->query("SELECT COUNT(*) FROM products WHERE stock > 0 AND stock <= 10 AND is_active = TRUE")->fetchColumn();
-        $out  = $pdo->query("SELECT COUNT(*) FROM products WHERE stock = 0 AND is_active = TRUE")->fetchColumn();
+        $lowQ = $pdo->prepare("SELECT COUNT(*) FROM products WHERE stock > 0 AND stock <= 10 AND is_active = TRUE $branchFilter");
+        $lowQ->execute($branchParam);
+        $low  = $lowQ->fetchColumn();
+        $outQ = $pdo->prepare("SELECT COUNT(*) FROM products WHERE stock = 0 AND is_active = TRUE $branchFilter");
+        $outQ->execute($branchParam);
+        $out  = $outQ->fetchColumn();
         respond(['success' => true, 'revenue_today' => (float)$row['revenue'], 'orders_today' => (int)$row['orders'], 'low_stock' => (int)$low, 'out_of_stock' => (int)$out]);
     }
 
