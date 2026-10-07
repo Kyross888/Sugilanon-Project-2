@@ -7,8 +7,19 @@ header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Headers: Content-Type');
 
 require_once 'db.php';
+require_once 'branch_scope.php';
 
 $action = $_GET['action'] ?? '';
+
+// Loads an order's branch and blocks staff from other branches
+function assertOrderAccess(PDO $pdo, int $id): void {
+    $q = $pdo->prepare("SELECT branch_id FROM transactions WHERE id = ?");
+    $q->execute([$id]);
+    $row = $q->fetch();
+    if (!$row) respond(['success' => false, 'error' => 'Order not found.'], 404);
+    assertBranchAccess($row['branch_id']);
+}
+
 
 // ── PLACE ORDER ──────────────────────────────────────────────
 if ($action === 'place') {
@@ -79,9 +90,15 @@ if ($action === 'place') {
 
             // Deduct stock
             if (!empty($item['product_id'])) {
-                $pdo->prepare(
-                    "UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?"
-                )->execute([$qty, $item['product_id']]);
+                if (!isAdminUser($user) && !empty($user['branch_id'])) {
+                    $pdo->prepare(
+                        "UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ? AND branch_id = ?"
+                    )->execute([$qty, $item['product_id'], $user['branch_id']]);
+                } else {
+                    $pdo->prepare(
+                        "UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?"
+                    )->execute([$qty, $item['product_id']]);
+                }
             }
         }
 
@@ -103,13 +120,16 @@ if ($action === 'list') {
     // status=voided lists deleted orders (for the Retrieve view); default is completed
     $status = (($_GET['status'] ?? '') === 'voided') ? 'voided' : 'completed';
 
-    $stmt = $pdo->prepare(
-        "SELECT * FROM transactions
-         WHERE status = ?
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?"
-    );
-    $stmt->execute([$status, $limit, $offset]);
+    // Branch separation: staff only get their own branch's orders
+    $bid    = scopedBranchId();
+    $sql    = "SELECT * FROM transactions WHERE status = ?";
+    $params = [$status];
+    if ($bid !== '' && $bid !== null) { $sql .= " AND branch_id = ?"; $params[] = (int)$bid; }
+    $sql .= " ORDER BY created_at DESC LIMIT ? OFFSET ?";
+    $params[] = $limit; $params[] = $offset;
+
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
     $orders = $stmt->fetchAll();
 
     if (!empty($orders)) {
@@ -141,6 +161,7 @@ if ($action === 'get') {
     $stmt->execute([$id]);
     $txn  = $stmt->fetch();
     if (!$txn) respond(['success' => false, 'error' => 'Order not found.'], 404);
+    assertBranchAccess($txn['branch_id']);
 
     $items = $pdo->prepare(
         "SELECT * FROM transaction_items WHERE transaction_id = ?"
@@ -155,6 +176,7 @@ if ($action === 'get') {
 if ($action === 'void') {
     requireAuth();
     $id = (int)($_GET['id'] ?? 0);
+    assertOrderAccess($pdo, $id);
     $pdo->prepare("UPDATE transactions SET status = 'voided' WHERE id = ?")->execute([$id]);
     respond(['success' => true]);
 }
@@ -171,6 +193,7 @@ if ($action === 'delete') {
 
     $id = (int)($_GET['id'] ?? 0);
     if ($id <= 0) respond(['success' => false, 'error' => 'Invalid order id.'], 400);
+    assertOrderAccess($pdo, $id);
 
     $pdo->beginTransaction();
     try {
@@ -205,6 +228,7 @@ if ($action === 'restore') {
     requireAuth();
     $id = (int)($_GET['id'] ?? 0);
     if ($id <= 0) respond(['success' => false, 'error' => 'Invalid order id.'], 400);
+    assertOrderAccess($pdo, $id);
 
     $pdo->beginTransaction();
     try {
