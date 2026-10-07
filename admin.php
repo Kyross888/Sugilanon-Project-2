@@ -45,12 +45,12 @@ if (isset($_GET['action'])) {
 
     if ($action === 'branch') {
         $branchId = (int)($_GET['id'] ?? 0);
-        // Include NULL branch_id rows (transactions placed before branch was assigned)
+        // Strictly this branch only (no cross-branch mixing)
         if ($branchId) {
-            $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE (branch_id = ? OR branch_id IS NULL) AND DATE(created_at) = ?::date AND status = 'completed'");
+            $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE branch_id = ? AND DATE(created_at) = ?::date AND status = 'completed'");
             $kpi->execute([$branchId, $date]);
             $kpiRow = $kpi->fetch();
-            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.discount, t.coupon_discount, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE (t.branch_id = ? OR t.branch_id IS NULL) AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
+            $txns = $pdo->prepare("SELECT t.id, t.reference_no, t.order_type, t.payment_method, t.total, t.discount, t.coupon_discount, t.created_at, STRING_AGG(ti.quantity || 'x ' || ti.product_name, ', ' ORDER BY ti.id) AS items_summary FROM transactions t LEFT JOIN transaction_items ti ON ti.transaction_id = t.id WHERE t.branch_id = ? AND DATE(t.created_at) = ?::date AND t.status = 'completed' GROUP BY t.id ORDER BY t.created_at DESC LIMIT 50");
             $txns->execute([$branchId, $date]);
         } else {
             $kpi = $pdo->prepare("SELECT COALESCE(SUM(total), 0) AS sales_today, COUNT(*) AS orders_today FROM transactions WHERE DATE(created_at) = ?::date AND status = 'completed'");
