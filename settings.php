@@ -391,7 +391,7 @@
     <div class="main">
         <header class="header">
             <h2 id="current-title" style="margin:0">Store Profile</h2>
-            <button type="button" class="btn-save" onclick="alert('Configuration updated successfully!')">Save Changes</button>
+            <button type="button" class="btn-save" onclick="saveProfile()">Save Changes</button>
         </header>
 
         <div class="content">
@@ -417,7 +417,7 @@
                 <div class="section-title">Account Profile</div>
                 <div class="form-group">
                     <label>Full Name</label>
-                    <input type="text" id="profile-fullname" readonly style="background:#f8fafc;cursor:default;">
+                    <input type="text" id="profile-fullname" maxlength="150" placeholder="Enter your full name">
                 </div>
                 <div class="form-group">
                     <label>Email Address</label>
@@ -544,6 +544,45 @@
             document.getElementById('profile-role').value = roleName;
             document.getElementById('profile-branch-field').value = branchName || 'Not assigned';
 
+        }
+
+        // ── Save Profile (full name) ───────────────────────────
+        async function saveProfile() {
+            const input = document.getElementById('profile-fullname');
+            const btn   = document.querySelector('.btn-save');
+            const name  = input.value.trim().replace(/\s+/g, ' ');
+
+            if (!name) {
+                alert('Full name cannot be empty.');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Saving…';
+
+            try {
+                const res = await fetch('auth.php?action=update_profile', {
+                    method: 'POST',
+                    credentials: 'same-origin',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ full_name: name })
+                }).then(r => r.json());
+
+                if (res && res.success) {
+                    input.value = res.name;
+                    document.getElementById('profile-name').textContent = res.name;
+                    btn.textContent = '✓ Saved!';
+                } else {
+                    alert((res && res.error) || 'Failed to save changes.');
+                    btn.textContent = 'Save Changes';
+                }
+            } catch (err) {
+                alert('Failed to save changes: ' + err.message);
+                btn.textContent = 'Save Changes';
+            }
+
+            btn.disabled = false;
+            setTimeout(() => btn.textContent = 'Save Changes', 2000);
         }
 
         // ── Change Password ────────────────────────────────────
