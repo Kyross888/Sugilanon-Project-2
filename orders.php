@@ -100,13 +100,16 @@ if ($action === 'list') {
     $limit = 50;
     $offset= ($page - 1) * $limit;
 
+    // status=voided lists deleted orders (for the Retrieve view); default is completed
+    $status = (($_GET['status'] ?? '') === 'voided') ? 'voided' : 'completed';
+
     $stmt = $pdo->prepare(
         "SELECT * FROM transactions
-         WHERE status = 'completed'
+         WHERE status = ?
          ORDER BY created_at DESC
          LIMIT ? OFFSET ?"
     );
-    $stmt->execute([$limit, $offset]);
+    $stmt->execute([$status, $limit, $offset]);
     $orders = $stmt->fetchAll();
 
     if (!empty($orders)) {
@@ -156,10 +159,11 @@ if ($action === 'void') {
     respond(['success' => true]);
 }
 
-// ── DELETE ORDER (permanent) ─────────────────────────────────
-// Removes the transaction and its items from the database, so it
-// disappears everywhere (Customers, Sales Report, Dashboard,
-// Analytics, Admin). Stock deducted by the sale is put back.
+// ── DELETE ORDER (recoverable) ───────────────────────────────
+// Marks the order as 'voided' instead of erasing it. Every page
+// (Sales Report, Dashboard, Analytics, Admin) only counts 'completed'
+// orders, so it disappears everywhere, but it can be retrieved.
+// Stock deducted by the sale is put back.
 if ($action === 'delete') {
     requireAuth();
     // To limit deleting to admins only, uncomment the next line:
@@ -170,7 +174,7 @@ if ($action === 'delete') {
 
     $pdo->beginTransaction();
     try {
-        $chk = $pdo->prepare("SELECT status FROM transactions WHERE id = ?");
+        $chk = $pdo->prepare("SELECT status FROM transactions WHERE id = ? FOR UPDATE");
         $chk->execute([$id]);
         $txn = $chk->fetch();
         if (!$txn) {
@@ -178,25 +182,54 @@ if ($action === 'delete') {
             respond(['success' => false, 'error' => 'Order not found.'], 404);
         }
 
-        // Put stock back (only if the order was still completed, i.e. stock was still deducted)
         if ($txn['status'] === 'completed') {
             $pdo->prepare(
                 "UPDATE products p SET stock = p.stock + ti.quantity
                  FROM transaction_items ti
                  WHERE ti.transaction_id = ? AND ti.product_id = p.id"
             )->execute([$id]);
+            $pdo->prepare("UPDATE transactions SET status = 'voided' WHERE id = ?")->execute([$id]);
         }
-
-        // transaction_items are removed automatically (ON DELETE CASCADE),
-        // but delete them explicitly too in case the constraint is missing.
-        $pdo->prepare("DELETE FROM transaction_items WHERE transaction_id = ?")->execute([$id]);
-        $pdo->prepare("DELETE FROM transactions WHERE id = ?")->execute([$id]);
 
         $pdo->commit();
         respond(['success' => true]);
     } catch (Exception $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         respond(['success' => false, 'error' => 'Delete failed: ' . $e->getMessage()], 500);
+    }
+}
+
+// ── RETRIEVE (RESTORE) DELETED ORDER ─────────────────────────
+// Brings a deleted order back to 'completed' and deducts its stock again.
+if ($action === 'restore') {
+    requireAuth();
+    $id = (int)($_GET['id'] ?? 0);
+    if ($id <= 0) respond(['success' => false, 'error' => 'Invalid order id.'], 400);
+
+    $pdo->beginTransaction();
+    try {
+        $chk = $pdo->prepare("SELECT status FROM transactions WHERE id = ? FOR UPDATE");
+        $chk->execute([$id]);
+        $txn = $chk->fetch();
+        if (!$txn) {
+            $pdo->rollBack();
+            respond(['success' => false, 'error' => 'Order not found.'], 404);
+        }
+
+        if ($txn['status'] === 'voided') {
+            $pdo->prepare(
+                "UPDATE products p SET stock = GREATEST(0, p.stock - ti.quantity)
+                 FROM transaction_items ti
+                 WHERE ti.transaction_id = ? AND ti.product_id = p.id"
+            )->execute([$id]);
+            $pdo->prepare("UPDATE transactions SET status = 'completed' WHERE id = ?")->execute([$id]);
+        }
+
+        $pdo->commit();
+        respond(['success' => true]);
+    } catch (Exception $e) {
+        if ($pdo->inTransaction()) $pdo->rollBack();
+        respond(['success' => false, 'error' => 'Retrieve failed: ' . $e->getMessage()], 500);
     }
 }
 
