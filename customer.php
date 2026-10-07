@@ -260,6 +260,21 @@ if (!isset($_GET['action'])) {
             background: #c6f6d5;
         }
         
+        .btn-delete {
+            background: #fff5f5;
+            color: var(--danger);
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            margin-left: 6px;
+        }
+        
+        .btn-delete:hover {
+            background: #fed7d7;
+        }
+        
         .content {
             padding: 30px;
             overflow-y: auto;
@@ -429,7 +444,7 @@ if (!isset($_GET['action'])) {
                             <th>Type</th>
                             <th>Items Ordered</th>
                             <th>Total</th>
-                            <th style="text-align:right;">Receipt</th>
+                            <th style="text-align:right;">Actions</th>
                         </tr>
                     </thead>
                     <tbody id="customerTableBody">
@@ -490,6 +505,7 @@ const api = {
         },
         get: (id) => fetchWithTimeout(`orders.php?action=get&id=${id}`, { credentials: 'same-origin' }).then(r => r.json()),
         void: (id) => fetchWithTimeout(`orders.php?action=void&id=${id}`, { method: 'POST', credentials: 'same-origin' }).then(r => r.json()),
+        delete: (id) => fetchWithTimeout(`orders.php?action=delete&id=${id}`, { method: 'POST', credentials: 'same-origin' }).then(r => r.json()),
     },
     customers: {
         list: (search = '') => fetchWithTimeout(`customers.php?action=list${search ? '&search=' + encodeURIComponent(search) : ''}`, { credentials: 'same-origin' }).then(r => r.json()),
@@ -614,6 +630,9 @@ function fmt(n) {
                             <button class="btn-print" onclick="printReceipt(${o.id})" title="Print Receipt">
                                 <i class="fa-solid fa-print"></i>
                             </button>
+                            <button class="btn-delete" onclick="deleteOrder(${o.id})" title="Delete Transaction">
+                                <i class="fa-solid fa-trash"></i>
+                            </button>
                         </td>
                     </tr>`;
             }).join('');
@@ -642,6 +661,31 @@ function fmt(n) {
                 '<div style="color:#999;font-size:12px;">No item details.</div>';
 
             window.print();
+        }
+
+        // ── Delete Transaction ────────────────────────────────
+        async function deleteOrder(id) {
+            const o = allOrders.find(x => x.id === id);
+            if (!o) return;
+
+            const ok = confirm(
+                'Delete order ' + o.reference_no + '?\n\n' +
+                'This permanently removes it from Customers, Sales Report, Dashboard and Analytics. ' +
+                'This cannot be undone.'
+            );
+            if (!ok) return;
+
+            try {
+                const res = await api.orders.delete(id);
+                if (!res.success) {
+                    alert('Failed to delete: ' + (res.error || 'Unknown error'));
+                    return;
+                }
+                allOrders = allOrders.filter(x => x.id !== id);
+                filterOrders();
+            } catch (err) {
+                alert('Failed to delete: ' + err.message);
+            }
         }
 
         function toggleSidebar() {
