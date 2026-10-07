@@ -121,6 +121,11 @@ const api = {
                 method: 'POST',
                 credentials: 'same-origin',
             }).then(r => r.json()),
+        delete: (id) =>
+            fetchWithTimeout(`orders.php?action=delete&id=${id}`, {
+                method: 'POST',
+                credentials: 'same-origin',
+            }).then(r => r.json()),
     },
 
     // ── DASHBOARD ─────────────────────────────────────────────
