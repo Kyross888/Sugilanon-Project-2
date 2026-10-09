@@ -317,6 +317,15 @@
         <header class="header">
             <h2>Inventory Management</h2>
             <div style="display:flex;gap:10px;align-items:center;">
+                <div style="position:relative;">
+                    <i class="fa-solid fa-magnifying-glass" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:#a0aec0;font-size:13px;pointer-events:none;"></i>
+                    <input type="text" id="searchInput" placeholder="Search product, category or ID…" oninput="drawInventory()" autocomplete="off"
+                        style="padding:10px 34px 10px 34px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;width:280px;outline:none;">
+                    <button type="button" id="clearSearch" onclick="clearSearch()" title="Clear"
+                        style="display:none;position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;color:#a0aec0;cursor:pointer;font-size:14px;">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
                 <select id="branchSelect" onchange="renderInventory()" style="display:none;padding:10px 12px;border:1px solid #e2e8f0;border-radius:8px;font-size:14px;">
                     <option value="">All branches</option>
                     <option value="1">Festive Mall</option>
@@ -402,6 +411,14 @@
         let editingId = null;
 
         let isAdmin = false;
+        let allProducts = [];
+
+        function clearSearch() {
+            const el = document.getElementById('searchInput');
+            el.value = '';
+            drawInventory();
+            el.focus();
+        }
 
         async function init() {
             const user = await requireLogin();
@@ -422,11 +439,29 @@
                 return;
             }
 
-            const products = res.data;
+            allProducts = res.data;
+            drawInventory();
+        }
+
+        // Filters the loaded products by the search box and draws the table
+        function drawInventory() {
+            const tbody = document.getElementById('inventoryBody');
+            const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+            document.getElementById('clearSearch').style.display = q ? '' : 'none';
+
+            const products = !q ? allProducts : allProducts.filter(p =>
+                String(p.name).toLowerCase().includes(q) ||
+                String(p.category).toLowerCase().includes(q) ||
+                ('#' + p.id).includes(q) || String(p.id) === q
+            );
             tbody.innerHTML = '';
 
-            if (!products.length) {
+            if (!allProducts.length) {
                 tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#718096;">No products yet. Click "+ Add Product" to start.</td></tr>';
+                return;
+            }
+            if (!products.length) {
+                tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:30px;color:#718096;">No products match "' + q.replace(/</g, '&lt;') + '".</td></tr>';
                 return;
             }
 
